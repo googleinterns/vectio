@@ -24,7 +24,7 @@ simple WorkloadSynthesizer like ITrafficGeneratorApp
 {
     parameters:
         xml appConfig = default(xml("<isSender/>true<destIds/><destIds></destIds>"));
-        string interfaceTableModule;   // The path to the InterfaceTable module
+        //string interfaceTableModule;   // The path to the InterfaceTable module
 
         // a space sperated list of msg sizes in bytes in a string like "100 1000 10000 100000"
         // that creates bins of msg size renges. each number in this string is an upper bound in the range;

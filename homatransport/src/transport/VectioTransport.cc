@@ -18,6 +18,10 @@
 #include <cmath>
 #include <fstream>
 #include "VectioTransport.h"
+#include "inet/networklayer/common/L3AddressResolver.h"
+#include "inet/networklayer/common/InterfaceEntry.h"
+#include "inet/networklayer/common/InterfaceTable.h"
+#include "inet/networklayer/ipv4/IPv4InterfaceData.h"
 
 Define_Module(VectioTransport);
 
@@ -80,6 +84,27 @@ VectioTransport::initialize()
 void
 VectioTransport::processStart()
 {
+    inet::InterfaceTable* ifaceTable =
+            check_and_cast<inet::InterfaceTable*>(
+            getModuleByPath(par("interfaceTableModule").stringValue()));
+    inet::InterfaceEntry* srcIface = NULL;
+    inet::IPv4InterfaceData* srcIPv4Data = NULL;
+    for (int i=0; i < ifaceTable->getNumInterfaces(); i++) {
+        if ((srcIface = ifaceTable->getInterface(i)) &&
+                !srcIface->isLoopback() &&
+                (srcIPv4Data = srcIface->ipv4Data())) {
+            break;
+        }
+    }
+    if (!srcIface) {
+        throw cRuntimeError("Can't find a valid interface on the host");
+    } else if (!srcIPv4Data) {
+        throw cRuntimeError("Can't find an interface with IPv4 address");
+    }
+    this->srcAddress = inet::L3Address(srcIPv4Data->getIPAddress());
+    if(logEvents){
+        logFile << simTime() << " setting up the src address: " << this->srcAddress << std::endl;
+    }
     socket.setOutputGate(gate("udpOut"));
     socket.bind(localPort);
 }
@@ -124,6 +149,7 @@ VectioTransport::processMsgFromApp(AppMessage* sendMsg)
     uint32_t msgByteLen = sendMsg->getByteLength();
     simtime_t msgCreationTime = sendMsg->getMsgCreationTime();
     inet::L3Address destAddr = sendMsg->getDestAddr();
+    sendMsg->setSrcAddr(this->srcAddress);
     inet::L3Address srcAddr = sendMsg->getSrcAddr();
     uint32_t firstByte = 0;
     uint32_t lastByte = 0;

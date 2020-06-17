@@ -10,15 +10,15 @@
 
     <IPv4Configurator>
         <config>
-            <interface hosts='**.host[0..15]' address='10.x.0.x' netmask='255.x.x.x'/>
-            <interface hosts='**.host[16..31]' address='10.x.1.x' netmask='255.x.x.x'/>
-            <interface hosts='**.host[32..47]' address='10.x.2.x' netmask='255.x.x.x'/>
-            <interface hosts='**.host[48..63]' address='10.x.3.x' netmask='255.x.x.x'/>
-            <interface hosts='**.host[64..79]' address='10.x.4.x' netmask='255.x.x.x'/>
-            <interface hosts='**.host[80..95]' address='10.x.5.x' netmask='255.x.x.x'/>
-            <interface hosts='**.host[96..111]' address='10.x.6.x' netmask='255.x.x.x'/>
-            <interface hosts='**.host[112..127]' address='10.x.7.x' netmask='255.x.x.x'/>
-            <interface hosts='**.host[128..143]' address='10.x.8.x' netmask='255.x.x.x'/>
+            <interface hosts='**.nic[0..15]' address='10.x.0.x' netmask='255.x.x.x'/>
+            <interface hosts='**.nic[16..31]' address='10.x.1.x' netmask='255.x.x.x'/>
+            <interface hosts='**.nic[32..47]' address='10.x.2.x' netmask='255.x.x.x'/>
+            <interface hosts='**.nic[48..63]' address='10.x.3.x' netmask='255.x.x.x'/>
+            <interface hosts='**.nic[64..79]' address='10.x.4.x' netmask='255.x.x.x'/>
+            <interface hosts='**.nic[80..95]' address='10.x.5.x' netmask='255.x.x.x'/>
+            <interface hosts='**.nic[96..111]' address='10.x.6.x' netmask='255.x.x.x'/>
+            <interface hosts='**.nic[112..127]' address='10.x.7.x' netmask='255.x.x.x'/>
+            <interface hosts='**.nic[128..143]' address='10.x.8.x' netmask='255.x.x.x'/>
             <interface hosts='**' address='10.x.x.x' netmask='255.x.x.x'/>
         </config>
     </IPv4Configurator>

@@ -22,6 +22,7 @@ import homatransport.transport.ITransportScheme;
 simple VectioTransport like ITransportScheme
 {
     parameters:
+        string interfaceTableModule;
         xml transportConfig = default(xml("<param/>"));
         int localPort = default(-1);
         int destPort;

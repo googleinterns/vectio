@@ -28,7 +28,7 @@ import homatransport.transport.ITransportScheme;
 // unnecessary parts are trimmed off and TransportScheme has been added.
 //
 
-module HostBase extends NodeBase
+module AppmasterBase
 {
     parameters:
         @display("i=device/pc2");
@@ -44,24 +44,15 @@ module HostBase extends NodeBase
         // no of UDP apps. Specify the app types in INI file with
         // udpApp[0..1].typename="UDPVideoStreamCli" syntax
         int numUdpApps = default(0);
-        bool hasTransportScheme = default(numTrafficGeneratorApp>0);
-        bool hasTcp = default(numTcpApps>0);
-        bool hasUdp = default((numUdpApps>0) || (numTrafficGeneratorApp>0));
-
-        // tcp implementation (e.g. ~TCP, ~TCP_lwIP, ~TCP_NSC) or ~TCPSpoof
-        string tcpType =
-            default(firstAvailable("TCP", "TCP_lwIP", "TCP_NSC", "TCP_None"));
-        string udpType = default(firstAvailable("UDP","UDP_None"));
-        string transportSchemeType =
-                default(firstAvailable("HomaTransport", "TransportSchemeNone"));
-        forwarding = default(false);  // disable routing by default
-        networkLayer.proxyARP = default(false);
 
         double edgeLinkDelay @unit(us);
         double fabricLinkDelay @unit(us);
         double hostSwTurnAroundTime @unit(us);
         double hostNicSxThinkTime @unit(us);
         double switchFixDelay @unit(us);
+    gates:
+        input pcieIn;
+        output pcieOut;
 
     submodules:
         trafficGeneratorApp[numTrafficGeneratorApp]: <default("WorkloadSynthesizer")> like ITrafficGeneratorApp {
@@ -78,21 +69,9 @@ module HostBase extends NodeBase
                 switchFixDelay = switchFixDelay;
         }
 
-        transportScheme: <transportSchemeType> like ITransportScheme if hasTransportScheme {
-            parameters:
-                @display("p=445,112");
-                transportConfig = xmldoc("config.xml", "/topologyConfig/hostConfig[@id=$PARENTMODULE_INDEX]/transportConfig");
-                nicLinkSpeed = nicLinkSpeed;
-        }
-
         udpApp[numUdpApps]: <> like IUDPApp {
             parameters:
                 @display("p=308,110,row,60");
-        }
-
-        udp: <udpType> like IUDP if hasUdp {
-            parameters:
-                @display("p=394,176");
         }
 
         tcpApp[numTcpApps]: <> like ITCPApp {
@@ -100,34 +79,20 @@ module HostBase extends NodeBase
                 @display("p=147,54,row,60");
         }
 
-        tcp: <tcpType> like ITCP if hasTcp {
-            parameters:
-                @display("p=147,141");
-        }
-
     connections allowunconnected:
         for i=0..numTrafficGeneratorApp-1 {
-            trafficGeneratorApp[i].transportOut --> transportScheme.appIn++;
-            trafficGeneratorApp[i].transportIn <-- transportScheme.appOut++;
+            trafficGeneratorApp[i].transportOut --> pcieOut;
+            trafficGeneratorApp[i].transportIn <-- pcieIn;
         }
-
-        transportScheme.udpOut --> udp.appIn++ if  hasTransportScheme;
-        transportScheme.udpIn <-- udp.appOut++ if hasTransportScheme;
 
         for i=0..numUdpApps-1 {
-            udpApp[i].udpOut --> udp.appIn++;
-            udpApp[i].udpIn <-- udp.appOut++;
+            udpApp[i].udpOut --> pcieOut;
+            udpApp[i].udpIn <-- pcieIn;
         }
-
-        udp.ipOut --> networkLayer.transportIn++ if hasUdp;
-        udp.ipIn <-- networkLayer.transportOut++ if hasUdp;
 
         for i=0..numTcpApps-1 {
-            tcpApp[i].tcpOut --> tcp.appIn++;
-            tcpApp[i].tcpIn <-- tcp.appOut++;
+            tcpApp[i].tcpOut --> pcieOut;
+            tcpApp[i].tcpIn <-- pcieIn;
         }
-
-        tcp.ipOut --> networkLayer.transportIn++ if hasTcp;
-        tcp.ipIn <-- networkLayer.transportOut++ if hasTcp;
 }
 

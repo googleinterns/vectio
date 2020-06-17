@@ -103,6 +103,8 @@ class VectioTransport : public cSimpleModule
     };
 
   protected:
+    //src interface address
+    inet::L3Address srcAddress;
 
     // UDP socket through which this transport send and receive packets.
     inet::UDPSocket socket;

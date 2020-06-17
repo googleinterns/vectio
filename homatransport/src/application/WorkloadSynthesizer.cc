@@ -159,7 +159,7 @@ WorkloadSynthesizer::initialize()
 
     // Find host id for parent host module of this app
     cModule* parentHost = this->getParentModule();
-    if (strcmp(parentHost->getName(), "host") != 0) {
+    if (strcmp(parentHost->getName(), "app") != 0) {
         throw cRuntimeError("'%s': Not a valid parent module type. Expected"
                 " \"HostBase\" for parent module type.",
                 parentHost->getName());
@@ -410,7 +410,7 @@ WorkloadSynthesizer::sendMsg()
     AppMessage *appMessage = new AppMessage(msgName);
     appMessage->setByteLength(sendMsgSize);
     appMessage->setDestAddr(destAddrs);
-    appMessage->setSrcAddr(srcAddress);
+    // appMessage->setSrcAddr(srcAddress);
     appMessage->setMsgCreationTime(appMessage->getCreationTime());
     appMessage->setTransportSchedDelay(appMessage->getCreationTime());
     emit(sentMsgSignal, appMessage);
@@ -423,24 +423,24 @@ WorkloadSynthesizer::processStart()
 {
     // set srcAddress. The assumption here is that each host has only one
     // non-loopback interface and the IP of that interface is srcAddress.
-    inet::InterfaceTable* ifaceTable =
-            check_and_cast<inet::InterfaceTable*>(
-            getModuleByPath(par("interfaceTableModule").stringValue()));
-    inet::InterfaceEntry* srcIface = NULL;
-    inet::IPv4InterfaceData* srcIPv4Data = NULL;
-    for (int i=0; i < ifaceTable->getNumInterfaces(); i++) {
-        if ((srcIface = ifaceTable->getInterface(i)) &&
-                !srcIface->isLoopback() &&
-                (srcIPv4Data = srcIface->ipv4Data())) {
-            break;
-        }
-    }
-    if (!srcIface) {
-        throw cRuntimeError("Can't find a valid interface on the host");
-    } else if (!srcIPv4Data) {
-        throw cRuntimeError("Can't find an interface with IPv4 address");
-    }
-    srcAddress = inet::L3Address(srcIPv4Data->getIPAddress());
+    // inet::InterfaceTable* ifaceTable =
+    //         check_and_cast<inet::InterfaceTable*>(
+    //         getModuleByPath(par("interfaceTableModule").stringValue()));
+    // inet::InterfaceEntry* srcIface = NULL;
+    // inet::IPv4InterfaceData* srcIPv4Data = NULL;
+    // for (int i=0; i < ifaceTable->getNumInterfaces(); i++) {
+    //     if ((srcIface = ifaceTable->getInterface(i)) &&
+    //             !srcIface->isLoopback() &&
+    //             (srcIPv4Data = srcIface->ipv4Data())) {
+    //         break;
+    //     }
+    // }
+    // if (!srcIface) {
+    //     throw cRuntimeError("Can't find a valid interface on the host");
+    // } else if (!srcIPv4Data) {
+    //     throw cRuntimeError("Can't find an interface with IPv4 address");
+    // }
+    // srcAddress = inet::L3Address(srcIPv4Data->getIPAddress());
 
     // call parseXml to complete intialization based on the config.xml file
     parseAndProcessXMLConfig();

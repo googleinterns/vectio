@@ -32,7 +32,7 @@
  */
 class GlobalSignalListener : public cSimpleModule
 {
-  PUBLIC:
+  public:
     GlobalSignalListener();
     ~GlobalSignalListener();
     void handleMesgStatsObj(cObject* obj);
@@ -45,13 +45,13 @@ class GlobalSignalListener : public cSimpleModule
      */
     class StabilityRecorder : public cListener
     {
-      PUBLIC:
+      public:
         StabilityRecorder(GlobalSignalListener* parentModule);
         ~StabilityRecorder(){}
         virtual void receiveSignal(cComponent* src, simsignal_t id,
             unsigned long l);
 
-      PUBLIC:
+      public:
         GlobalSignalListener* parentModule;
         uint64_t totalSendBacklog;
         uint64_t callCount;
@@ -70,12 +70,12 @@ class GlobalSignalListener : public cSimpleModule
      */
     class AppStatsListener : public cListener
     {
-      PUBLIC:
+      public:
         AppStatsListener(GlobalSignalListener* parentMod);
         ~AppStatsListener(){}
         virtual void receiveSignal(cComponent* src, simsignal_t id,
             cObject* obj);
-      PUBLIC:
+      public:
         GlobalSignalListener* parentModule;
     };
 
@@ -87,14 +87,14 @@ class GlobalSignalListener : public cSimpleModule
      */
     class ActiveSchedsListener : public cListener
     {
-      PUBLIC:
+      public:
         ActiveSchedsListener(GlobalSignalListener* parentMod);
         ~ActiveSchedsListener(){}
         virtual void receiveSignal(cComponent* src, simsignal_t id,
             cObject* obj);
         void dumpStats();
 
-      PUBLIC:
+      public:
         GlobalSignalListener* parentMod;
         // Hash-map from key numActiveSenders to time duration during which the
         // key was maintained as the number of active scheduled senders in the
@@ -122,21 +122,21 @@ class GlobalSignalListener : public cSimpleModule
      */
     class SelfWastedBandwidthListener : public cListener
     {
-      PUBLIC:
+      public:
         SelfWastedBandwidthListener(GlobalSignalListener* parentMod,
             const char* srcSigName, const char* destSigName);
         ~SelfWastedBandwidthListener(){}
         virtual void receiveSignal(cComponent *src, simsignal_t id,
             const SimTime& v);
 
-      PUBLIC:
+      public:
         GlobalSignalListener* parentMod;
         const char* srcSigName;
         const char* destSigName;
         simsignal_t destSigId;
     };
 
-  PUBLIC:
+  public:
     StabilityRecorder* stabilityRecorder;
     AppStatsListener* appStatsListener;
     ActiveSchedsListener* activeSchedsListener;
@@ -153,7 +153,7 @@ class GlobalSignalListener : public cSimpleModule
     std::unordered_map<uint64_t, simsignal_t> mesgQueueDelaySignals;
     std::unordered_map<uint64_t, simsignal_t> mesgTransportSchedDelaySignals;
 
-  PROTECTED:
+  protected:
     virtual void initialize();
     virtual void finish();
     virtual void handleMessage(cMessage *msg);

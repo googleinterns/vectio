@@ -23,14 +23,14 @@
  */
 class WorkloadEstimator
 {
-  PUBLIC:
+  public:
     typedef std::vector<std::pair<uint32_t, double>> CdfVector;
     typedef std::list<std::pair<uint32_t, double>> CdfList;
     explicit WorkloadEstimator(HomaConfigDepot* homaConfig);
     void recomputeRxWorkload(uint32_t msgSize, simtime_t timeMsgArrived);
     void recomputeSxWorkload(uint32_t msgSize, simtime_t timeMsgSent);
 
-  PUBLIC:
+  public:
     CdfVector cdfFromFile; // This has no practical use or meaning
     CdfVector cbfFromFile;
     CdfVector remainSizeCdf;
@@ -42,7 +42,7 @@ class WorkloadEstimator
     CdfVector sxCdfComputed;
     HomaConfigDepot* homaConfig;
 
-  PROTECTED:
+  protected:
     void getRemainSizeCdfCbf(CdfVector& cdf,
         uint32_t cbfCapMsgSize = UINT32_MAX, uint32_t boostTailBytesPrio = 0);
 
@@ -50,7 +50,7 @@ class WorkloadEstimator
         uint32_t cbfCapMsgSize = UINT32_MAX, uint32_t boostTailBytesPrio = 0);
 
     class CompCdfPairs {
-      PUBLIC:
+      public:
         CompCdfPairs() {}
         bool operator()(const std::pair<uint32_t, double>& pair1,
                 const std::pair<uint32_t, double>& pair2)

@@ -16,7 +16,7 @@
 
 class PriorityResolver
 {
-  PUBLIC:
+  public:
     typedef HomaTransport::InboundMessage InboundMessage;
     typedef HomaTransport::OutboundMessage OutboundMessage;
     enum PrioResolutionMode {
@@ -50,7 +50,7 @@ class PriorityResolver
         return fabs(a-b) < 1e-6;
     }
 
-  PRIVATE:
+  private:
     uint32_t maxSchedPktDataBytes;
     const WorkloadEstimator::CdfVector* cdf;
     const WorkloadEstimator::CdfVector* cbf;
@@ -61,7 +61,7 @@ class PriorityResolver
     PrioResolutionMode prioResMode;
     HomaConfigDepot* homaConfig;
 
-  PROTECTED:
+  protected:
     void recomputeCbf(uint32_t cbfCapMsgSize, uint32_t boostTailBytesPrio);
     uint16_t getMesgPrio(uint32_t size);
     friend class HomaTransport;

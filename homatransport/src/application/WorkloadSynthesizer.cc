@@ -146,8 +146,9 @@ WorkloadSynthesizer::initialize()
     startTime = par("startTime").doubleValue();
     stopTime = par("stopTime").doubleValue();
     xmlConfig = par("appConfig").xmlValue();
+    const char* resultsDir = "results/";
     std::string OutputFileName = std::string(
-                "results/") + std::string(par("resultFile").stringValue());
+                resultsDir) + std::string(par("resultFile").stringValue());
     if(!outputFile.is_open()) {
         outputFile.open(OutputFileName);
     }
@@ -545,10 +546,9 @@ WorkloadSynthesizer::processRcvdMsg(cPacket* msg)
     inet::L3Address srcAddr = rcvdMsg->getSrcAddr();
     inet::L3Address destAddr = rcvdMsg->getDestAddr();
 
-    int srcId = srcAddr.toIPv4().getDByte(2) * 16 + srcAddr.toIPv4().getDByte(3);
-    int dstId = destAddr.toIPv4().getDByte(2) * 16 + destAddr.toIPv4().getDByte(3);
-
-    outputFile  << srcAddr << " " << destAddr << " " << msgByteLen << " " << rcvdMsg->getMsgCreationTime().dbl() << " " << simTime() << " " 
+    outputFile  << srcAddr << " " << destAddr << 
+    " " << msgByteLen << " " << rcvdMsg->getMsgCreationTime().dbl() << 
+    " " << simTime() << " " 
     << completionTime.dbl() << std::endl;
     outputFile.flush();
 

@@ -22,7 +22,7 @@
 // This class is the ultimate place for storing all config parameters. All other
 // classes will get a pointer to this class and can read params from this
 class HomaConfigDepot {
-  PUBLIC:
+  public:
     HomaConfigDepot(cComponent* ownerTransport);
     ~HomaConfigDepot(){}
 
@@ -35,7 +35,7 @@ class HomaConfigDepot {
         UNDEFINED
     };
 
-  PUBLIC:
+  public:
     cComponent* ownerTransport;
 
     // Contains the parameters defined in the xml file config.xml in under
@@ -141,19 +141,19 @@ class HomaConfigDepot {
     // workloadType.
     const char* workloadType;
 
-  PRIVATE:
+  private:
     // Enum-ed corresponding value for SenderScheme param. Provided for doing
     // faster runtime checks based on SenderScheme values.
     SenderScheme sxScheme;
 
-  PUBLIC:
+  public:
     /**
      * getter method for SenderScheme enum-ed param.
      */
     const SenderScheme getSenderScheme() {return sxScheme;}
 
 
-  PRIVATE:
+  private:
     void paramToEnum();
 };
 #endif

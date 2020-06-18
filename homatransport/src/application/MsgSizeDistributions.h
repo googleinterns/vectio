@@ -19,7 +19,7 @@
 
 class MsgSizeDistributions {
 
-  PUBLIC:
+  public:
     enum DistributionChoice {
         SIZE_IN_FILE = 0,
         DCTCP,
@@ -54,7 +54,7 @@ class MsgSizeDistributions {
     void getSizeAndInterarrival(int &nextMsgSize, int& destHostId,
         double &nextInterarrivalTime);
 
-  PRIVATE:
+  private:
     std::vector<std::pair<int, double>> msgSizeProbDistVector;
     std::queue<std::tuple<int, int, double>> msgSizeDestInterarrivalQueue;
 
@@ -71,7 +71,7 @@ class MsgSizeDistributions {
     // Max number of data bytes that one packet can carry.
     int maxDataBytesPerPkt;
 
-  PRIVATE:
+  private:
     void getInfileSizeInterarrivalDest(int &msgSize, int &destHostId,
         double &nextInterarrivalTime);
     void getFacebookSizeInterarrival(int &msgSize,

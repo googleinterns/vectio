@@ -119,7 +119,8 @@ VectioTransport::handleMessage(cMessage *msg)
 void
 VectioTransport::processMsgFromApp(AppMessage* sendMsg)
 {
-    //Receive message from the app, store the outbound message state and send out a request packet
+    //Receive message from the app, store the outbound message state and 
+    // send out a request packet
     uint32_t msgByteLen = sendMsg->getByteLength();
     simtime_t msgCreationTime = sendMsg->getMsgCreationTime();
     inet::L3Address destAddr = sendMsg->getDestAddr();
@@ -129,7 +130,10 @@ VectioTransport::processMsgFromApp(AppMessage* sendMsg)
     uint32_t bytesToSend = sendMsg->getByteLength();
 
     if(logEvents){
-        logFile << simTime() << " Msg: " << msgId << " received from App at src: " << srcAddr << " to: " << destAddr << " size: " << bytesToSend << std::endl;
+        logFile << simTime() << " Msg: " << msgId 
+        << " received from App at src: " << srcAddr 
+        << " to: " << destAddr << " size: " 
+        << bytesToSend << std::endl;
         logFile.flush();
     }
 
@@ -144,7 +148,8 @@ VectioTransport::processMsgFromApp(AppMessage* sendMsg)
     outboundSxMsg->destAddr = destAddr;
     outboundSxMsg->msgCreationTime = msgCreationTime;
 
-    this->incompleteSxMsgsMap.insert(std::pair<uint64_t,OutboundMsg*>(msgId,outboundSxMsg));
+    this->incompleteSxMsgsMap.insert(
+        std::pair<uint64_t,OutboundMsg*>(msgId,outboundSxMsg));
 
     //Create and forward a request packet for this outbound message
     uint32_t pktDataBytes = 1;
@@ -162,7 +167,7 @@ VectioTransport::processMsgFromApp(AppMessage* sendMsg)
     rqPkt->setSrcAddr(srcAddr);
     rqPkt->setDestAddr(destAddr);
     rqPkt->setMsgId(msgId);
-    // rqPkt->setPriority(bytesToSend); //TODO think about the priority for rqpkt
+    // rqPkt->setPriority(bytesToSend); //TODO think about priority for rqpkt
     rqPkt->setPktType(PktType::REQUEST);
     rqPkt->setUnschedFields(unschedFields);
     rqPkt->setByteLength(pktDataBytes + rqPkt->headerSize());
@@ -200,7 +205,9 @@ void
 VectioTransport::processReqPkt(HomaPkt* rxPkt)
 {
     if(logEvents){
-        logFile << simTime() << " Received request pkt for msg: " << rxPkt->getMsgId() << " at the receiver: " << rxPkt->getDestAddr() << std::endl;
+        logFile << simTime() << " Received request pkt for msg: " << 
+        rxPkt->getMsgId() << " at the receiver: " << 
+        rxPkt->getDestAddr() << std::endl;
         logFile.flush();
     }
 
@@ -213,7 +220,8 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
     inet::L3Address srcAddr = rxPkt->getSrcAddr();
     InboundMsg* inboundRxMsg = NULL;
     std::list<InboundMsg*> &rxMsgList = incompleteRxMsgsMap[msgId];
-    for(auto inbndIter = rxMsgList.begin(); inbndIter != rxMsgList.end(); ++inbndIter){
+    for(auto inbndIter = rxMsgList.begin(); 
+        inbndIter != rxMsgList.end(); ++inbndIter){
         InboundMsg* incompleteRxMsg = *inbndIter;
         ASSERT(incompleteRxMsg->msgIdAtSender == msgId);
         if (incompleteRxMsg->srcAddr == srcAddr) {
@@ -225,7 +233,8 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
 
     //add the message to the map
     if(!inboundRxMsg){
-        inboundRxMsg = new InboundMsg(rxPkt); //TODO make sure the correct information is transferred here
+        inboundRxMsg = new InboundMsg(rxPkt); 
+        //TODO make sure the correct information is transferred here
         rxMsgList.push_front(inboundRxMsg);
     }
     else{
@@ -237,7 +246,7 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
     grntPkt->setSrcAddr(inboundRxMsg->destAddr);
     grntPkt->setDestAddr(inboundRxMsg->srcAddr);
     grntPkt->setMsgId(inboundRxMsg->msgIdAtSender);
-    // grntPkt->setPriority(bytesToSend); //TODO think about the priority for grntPkt
+    // grntPkt->setPriority(bytesToSend);//TODO think about priority for grntPkt
     grntPkt->setPktType(PktType::GRANT);
     // grntPkt->setUnschedFields(unschedFields);
     // grntPkt->setByteLength(pktDataBytes + grntPkt->headerSize());
@@ -252,7 +261,9 @@ void
 VectioTransport::processGrantPkt(HomaPkt* rxPkt)
 {
     if(logEvents){
-        logFile << simTime() << " Received grant pkt for msg: " << rxPkt->getMsgId() << " at the sender: " << rxPkt->getDestAddr() << std::endl;
+        logFile << simTime() << " Received grant pkt for msg: " << 
+        rxPkt->getMsgId() << " at the sender: " << 
+        rxPkt->getDestAddr() << std::endl;
         logFile.flush();
     }
     // Grant pkt for a message received at the sender
@@ -307,7 +318,9 @@ void
 VectioTransport::processDataPkt(HomaPkt* rxPkt)
 {
     if(logEvents){
-        logFile << simTime() << " Received data pkt for msg: " << rxPkt->getMsgId() << " at the receiver: " << rxPkt->getDestAddr() << std::endl;
+        logFile << simTime() << " Received data pkt for msg: " << 
+        rxPkt->getMsgId() << " at the receiver: " << 
+        rxPkt->getDestAddr() << std::endl;
         logFile.flush();
     }
     // Find the InboundMsg corresponding to this rxPkt in the
@@ -329,7 +342,8 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
     if (!inboundRxMsg) {
        assert(false);
        //This should never happen cause the map had already been updated when 
-       // received the grant, and would be removed only after receiving all the packets
+       // received the grant, and would be removed only after 
+       // receiving all the packets
     }
 
     // Append the data to the inboundRxMsg and if the msg is complete, remove it
@@ -418,8 +432,8 @@ VectioTransport::InboundMsg::appendPktData(HomaPkt* rxPkt)
 
     numBytesToRecv -= dataBytesInPkt;
     if (numBytesToRecv < 0) {
-        throw cRuntimeError("Remaining bytes to receive for an inbound msg can't be"
-                " negative.");
+        throw cRuntimeError("Remaining bytes to "
+        "receive for an inbound msg can't be negative.");
     }
 
     if (numBytesToRecv == 0) {

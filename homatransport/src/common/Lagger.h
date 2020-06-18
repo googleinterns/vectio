@@ -25,18 +25,18 @@
  */
 class Lagger : public cSimpleModule
 {
-  PUBLIC:
+  public:
     Lagger();
     ~Lagger(){}
 
-  PROTECTED:
+  protected:
     virtual void initialize();
     virtual void handleMessage(cMessage *msg);
     virtual void inputHookPktHandler(cMessage* msg);
     virtual void outputHookPktHandler(cMessage* msg);
 
 
-  PROTECTED:
+  protected:
     std::string hookType;
     cPar* delayPar;
     cModule* mac;

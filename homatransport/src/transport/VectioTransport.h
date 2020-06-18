@@ -1,15 +1,15 @@
 //
 // This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
+// it under the terms of the GNU Lesser General public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
+// GNU Lesser General public License for more details.
 //
-// You should have received a copy of the GNU Lesser General Public License
+// You should have received a copy of the GNU Lesser General public License
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 //
 
@@ -37,13 +37,13 @@
 
 class VectioTransport : public cSimpleModule
 {
-  PUBLIC:
+  public:
 
-  PUBLIC:
+  public:
     VectioTransport();
     ~VectioTransport();
 
-  PROTECTED:
+  protected:
     virtual void initialize();
     virtual void handleMessage(cMessage *msg);
     virtual void processStart();
@@ -67,13 +67,13 @@ class VectioTransport : public cSimpleModule
 
     class InboundMsg
     {
-      PUBLIC:
+      public:
         explicit InboundMsg();
         explicit InboundMsg(HomaPkt* rxPkt);
         ~InboundMsg();
         bool appendPktData(HomaPkt* rxPkt);
 
-      PUBLIC:
+      public:
         int numBytesToRecv;
         uint32_t msgByteLen;
         uint32_t totalBytesOnWire;
@@ -85,13 +85,13 @@ class VectioTransport : public cSimpleModule
 
     class OutboundMsg
     {
-      PUBLIC:
+      public:
         explicit OutboundMsg();
         explicit OutboundMsg(HomaPkt* sxPkt);
         ~OutboundMsg();
         bool rmvAckedPktData(HomaPkt* ack);
 
-      PUBLIC:
+      public:
         int numBytesToSend;
         uint32_t nextByteToSend;
         uint32_t msgByteLen;
@@ -102,7 +102,7 @@ class VectioTransport : public cSimpleModule
         simtime_t msgCreationTime;
     };
 
-  PROTECTED:
+  protected:
 
     // UDP socket through which this transport send and receive packets.
     inet::UDPSocket socket;
@@ -132,8 +132,8 @@ class VectioTransport : public cSimpleModule
     IncompleteRxMsgsMap incompleteRxMsgsMap;
 
     // State and variables kept for managing outbound messages
-    // Defines a map to keep a all partially fulfilled outbound messages. The key
-    // is the msgId at the sender and value is the corresponding outbound 
+    // Defines a map to keep a all partially fulfilled outbound messages. 
+    // The key is msgId at the sender and value is the corresponding outboundmsg 
     typedef std::map<uint64_t, OutboundMsg*>
             IncompleteSxMsgsMap;
     IncompleteSxMsgsMap incompleteSxMsgsMap;

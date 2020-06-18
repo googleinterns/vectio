@@ -103,7 +103,8 @@ VectioTransport::processStart()
     }
     this->srcAddress = inet::L3Address(srcIPv4Data->getIPAddress());
     if(logEvents){
-        logFile << simTime() << " setting up the src address: " << this->srcAddress << std::endl;
+        logFile << simTime() << " setting up the src address: " << 
+        this->srcAddress << std::endl;
     }
     socket.setOutputGate(gate("udpOut"));
     socket.bind(localPort);
@@ -266,19 +267,26 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
     else{
         assert(false);
     }
+    int bytesToSend = inboundRxMsg->msgByteLen;
+    //create and send per-packet grants for the message
+    do{
+        uint32_t pktDataBytes = std::min(bytesToSend, this->grantSizeBytes);
+        HomaPkt* grntPkt = new HomaPkt();
+        GrantFields grantFields;
+        grantFields.grantBytes = pktDataBytes;
+        grntPkt->setSrcAddr(inboundRxMsg->destAddr);
+        grntPkt->setDestAddr(inboundRxMsg->srcAddr);
+        grntPkt->setMsgId(inboundRxMsg->msgIdAtSender);
+        // grntPkt->setPriority(bytesToSend); //TODO think about the priority for grntPkt
+        grntPkt->setPktType(PktType::GRANT);
+        grntPkt->setGrantFields(grantFields);
+        grntPkt->setByteLength(grntPkt->headerSize());
+        bytesToSend -= pktDataBytes;
+        assert(bytesToSend >= 0);
 
-    //create and send a grant message for the added message
-    HomaPkt* grntPkt = new HomaPkt();
-    grntPkt->setSrcAddr(inboundRxMsg->destAddr);
-    grntPkt->setDestAddr(inboundRxMsg->srcAddr);
-    grntPkt->setMsgId(inboundRxMsg->msgIdAtSender);
-    // grntPkt->setPriority(bytesToSend);//TODO think about priority for grntPkt
-    grntPkt->setPktType(PktType::GRANT);
-    // grntPkt->setUnschedFields(unschedFields);
-    // grntPkt->setByteLength(pktDataBytes + grntPkt->headerSize());
-
-    // Send the packet out
-    socket.sendTo(grntPkt, grntPkt->getDestAddr(), destPort);
+        // Send the packet out
+        socket.sendTo(grntPkt, grntPkt->getDestAddr(), destPort);
+    }while(bytesToSend > 0);
 
     //TODO how to set the bytes allowed by a grant packet
 }
@@ -288,8 +296,8 @@ VectioTransport::processGrantPkt(HomaPkt* rxPkt)
 {
     if(logEvents){
         logFile << simTime() << " Received grant pkt for msg: " << 
-        rxPkt->getMsgId() << " at the sender: " << 
-        rxPkt->getDestAddr() << std::endl;
+        rxPkt->getMsgId() << " at the sender: " << rxPkt->getDestAddr() << 
+        " size: " << rxPkt->getGrantFields().grantBytes << std::endl;
         logFile.flush();
     }
     // Grant pkt for a message received at the sender
@@ -306,37 +314,41 @@ VectioTransport::processGrantPkt(HomaPkt* rxPkt)
     simtime_t msgCreationTime = outboundSxMsg->msgCreationTime;
     inet::L3Address destAddr = outboundSxMsg->destAddr;
     inet::L3Address srcAddr = outboundSxMsg->srcAddr;
-    uint32_t firstByte = 0;
+    uint32_t firstByte = outboundSxMsg->nextByteToSend;
     uint32_t lastByte = 0;
-    uint32_t bytesToSend = msgByteLen;
-    do{
-        // Create a scheduled pkt and fill it up with the proper parameters
-        uint32_t pktDataBytes = std::min(bytesToSend, maxDataBytesInPkt);
-        lastByte = firstByte + pktDataBytes - 1;
-        SchedDataFields schedFields;
-        schedFields.firstByte = firstByte;
-        schedFields.lastByte = lastByte;
-        bytesToSend -= pktDataBytes;
-        firstByte = lastByte + 1;
+    uint32_t bytesToSend = outboundSxMsg->numBytesToSend;
+    
+    // uint32_t pktDataBytes = std::min(bytesToSend, maxDataBytesInPkt);
+    GrantFields grantFields = rxPkt->getGrantFields();
+    uint32_t pktDataBytes = grantFields.grantBytes;
+    lastByte = firstByte + pktDataBytes - 1;
+    SchedDataFields schedFields;
+    schedFields.firstByte = firstByte;
+    schedFields.lastByte = lastByte;
+    bytesToSend -= pktDataBytes;
+    firstByte = lastByte + 1;
+    outboundSxMsg->nextByteToSend = firstByte;
+    (outboundSxMsg->nextByteToSend < outboundSxMsg->msgByteLen);
 
-        // Create a homa pkt for transmission
-        HomaPkt* sxPkt = new HomaPkt();
-        sxPkt->setSrcAddr(srcAddr);
-        sxPkt->setDestAddr(destAddr);
-        sxPkt->setMsgId(msgId);
-        // sxPkt->setPriority(bytesToSend);
-        sxPkt->setPktType(PktType::SCHED_DATA);
-        sxPkt->setSchedDataFields(schedFields);
-        sxPkt->setByteLength(pktDataBytes + sxPkt->headerSize());
+    // Create a homa pkt for transmission
+    HomaPkt* sxPkt = new HomaPkt();
+    sxPkt->setSrcAddr(srcAddr);
+    sxPkt->setDestAddr(destAddr);
+    sxPkt->setMsgId(msgId);
+    // sxPkt->setPriority(bytesToSend);
+    sxPkt->setPktType(PktType::SCHED_DATA);
+    sxPkt->setSchedDataFields(schedFields);
+    sxPkt->setByteLength(pktDataBytes + sxPkt->headerSize());
 
-        // Send the packet out
-        socket.sendTo(sxPkt, sxPkt->getDestAddr(), destPort);
-    }while(bytesToSend > 0);
+    // Send the packet out
+    socket.sendTo(sxPkt, sxPkt->getDestAddr(), destPort);
 
-    //remove the message from the map
-    auto it = incompleteSxMsgsMap.find(msgId);
-    assert(it != incompleteSxMsgsMap.end());
-    incompleteSxMsgsMap.erase(it);
+    //remove the message from the map if the message done sending all the bytes
+    if(lastByte == outboundSxMsg->msgByteLen){
+        auto it = incompleteSxMsgsMap.find(msgId);
+        assert(it != incompleteSxMsgsMap.end());
+        incompleteSxMsgsMap.erase(it);
+    }
 
 }
 
@@ -345,8 +357,8 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
 {
     if(logEvents){
         logFile << simTime() << " Received data pkt for msg: " << 
-        rxPkt->getMsgId() << " at the receiver: " << 
-        rxPkt->getDestAddr() << std::endl;
+        rxPkt->getMsgId() << " at the receiver: " << rxPkt->getDestAddr() << 
+        " size: " << rxPkt->getDataBytes() << std::endl;
         logFile.flush();
     }
     // Find the InboundMsg corresponding to this rxPkt in the

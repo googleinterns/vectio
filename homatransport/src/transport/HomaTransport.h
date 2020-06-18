@@ -51,7 +51,7 @@ class PriorityResolver;
  */
 class HomaTransport : public cSimpleModule
 {
-  PUBLIC:
+  public:
     HomaTransport();
     ~HomaTransport();
 
@@ -66,7 +66,7 @@ class HomaTransport : public cSimpleModule
      */
     class OutboundMessage
     {
-      PUBLIC:
+      public:
         explicit OutboundMessage();
         explicit OutboundMessage(AppMessage* outMsg,
                 SendController* sxController, uint64_t msgId,
@@ -78,14 +78,14 @@ class HomaTransport : public cSimpleModule
         uint32_t prepareSchedPkt(uint32_t offset, uint16_t numBytes,
             uint16_t schedPrio);
 
-      PUBLIC:
+      public:
         /**
          * A utility predicate for creating PriorityQueues of HomaPkt instances.
          * Determines in what order pkts of this msg will be sent out to the
          * network.
          */
         class OutbndPktSorter {
-          PUBLIC:
+          public:
             OutbndPktSorter(){}
             bool operator()(const HomaPkt* pkt1, const HomaPkt* pkt2);
         };
@@ -105,7 +105,7 @@ class HomaTransport : public cSimpleModule
         const simtime_t getMsgCreationTime() { return msgCreationTime; }
         bool getTransmitReadyPkt(HomaPkt** outPkt);
 
-      PROTECTED:
+      protected:
         // Unique identification number assigned by in the construction time for
         // the purpose of easy external access to this message.
         uint64_t msgId;
@@ -162,7 +162,7 @@ class HomaTransport : public cSimpleModule
         // The object that keeps all transport configuration parameters
         HomaConfigDepot *homaConfig;
 
-      PRIVATE:
+      private:
         void copy(const OutboundMessage &other);
         std::vector<uint32_t> getUnschedPerPrio(
             std::vector<uint32_t>& unschedPrioVec);
@@ -179,7 +179,7 @@ class HomaTransport : public cSimpleModule
      */
     class SendController
     {
-      PUBLIC:
+      public:
         typedef std::unordered_map<uint64_t, OutboundMessage> OutboundMsgMap;
         SendController(HomaTransport* transport);
         ~SendController();
@@ -191,7 +191,7 @@ class HomaTransport : public cSimpleModule
         void sendOrQueue(cMessage* msg = NULL);
         void handlePktTransmitEnd();
 
-      PUBLIC:
+      public:
         /**
          * A predicate func object for sorting OutboundMessages based on the
          * senderScheme used for transport. Detemines in what order
@@ -199,17 +199,17 @@ class HomaTransport : public cSimpleModule
          * pkts queues in OutboundMessage::txPkts).
          */
         class OutbndMsgSorter {
-          PUBLIC:
+          public:
             OutbndMsgSorter(){}
             bool operator()(OutboundMessage* msg1, OutboundMessage* msg2);
         };
         typedef std::set<OutboundMessage*, OutbndMsgSorter> SortedOutboundMsg;
 
-      PROTECTED:
+      protected:
         void sendPktAndScheduleNext(HomaPkt* sxPkt);
         void msgTransmitComplete(OutboundMessage* msg);
 
-      PROTECTED:
+      protected:
         // For the purpose of statistics recording, this variable tracks the
         // total number bytes left to be sent for all outstanding messages.
         // (including unsched/sched bytes ready to be sent but not yet
@@ -283,14 +283,14 @@ class HomaTransport : public cSimpleModule
      */
     class InboundMessage
     {
-      PUBLIC:
+      public:
         explicit InboundMessage();
         explicit InboundMessage(const InboundMessage& other);
         explicit InboundMessage(HomaPkt* rxPkt, ReceiveScheduler* rxScheduler,
             HomaConfigDepot* homaConfig);
         ~InboundMessage();
 
-      PUBLIC:
+      public:
         typedef std::list<std::tuple<uint32_t, uint16_t, simtime_t>> GrantList;
 
         /**
@@ -299,7 +299,7 @@ class HomaTransport : public cSimpleModule
          */
         class CompareBytesToGrant
         {
-          PUBLIC:
+          public:
             CompareBytesToGrant()
             {}
 
@@ -330,7 +330,7 @@ class HomaTransport : public cSimpleModule
         };
         const uint32_t& getMsgSize() { return msgSize; }
 
-      PROTECTED:
+      protected:
         // The ReceiveScheduler that manages the reception of this message.
         ReceiveScheduler *rxScheduler;
 
@@ -434,7 +434,7 @@ class HomaTransport : public cSimpleModule
         friend class TrafficPacer;
         friend class PriorityResolver;
 
-      PROTECTED:
+      protected:
         void copy(const InboundMessage& other);
         void fillinRxBytes(uint32_t byteStart, uint32_t byteEnd,
             PktType pktType);
@@ -453,19 +453,19 @@ class HomaTransport : public cSimpleModule
      */
     class ReceiveScheduler
     {
-      PUBLIC:
+      public:
         ReceiveScheduler(HomaTransport* transport);
         ~ReceiveScheduler();
         InboundMessage* lookupInboundMesg(HomaPkt* rxPkt) const;
 
         class UnschedRateComputer {
-          PUBLIC:
+          public:
             UnschedRateComputer(HomaConfigDepot* homaConfig,
                 bool computeAvgUnschRate = false, double minAvgTimeWindow = .1);
             double getAvgUnschRate(simtime_t currentTime);
             void updateUnschRate(simtime_t arrivalTime, uint32_t bytesRecvd);
 
-          PUBLIC:
+          public:
             bool computeAvgUnschRate;
             std::vector<std::pair<uint32_t, double>> bytesRecvTime;
             uint64_t sumBytes;
@@ -479,7 +479,7 @@ class HomaTransport : public cSimpleModule
          * to schedule messages of the corresponding sender.
          */
         class SenderState {
-          PUBLIC:
+          public:
             SenderState(inet::IPv4Address srcAddr,
                 ReceiveScheduler* rxScheduler, cMessage* grantTimer,
                 HomaConfigDepot* homaConfig);
@@ -492,7 +492,7 @@ class HomaTransport : public cSimpleModule
             int sendAndScheduleGrant(uint32_t grantPrio);
             std::pair<bool, int> handleInboundPkt(HomaPkt* rxPkt);
 
-          PROTECTED:
+          protected:
             HomaConfigDepot* homaConfig;
             ReceiveScheduler* rxScheduler;
             inet::IPv4Address senderAddr;
@@ -526,12 +526,12 @@ class HomaTransport : public cSimpleModule
          * logic and the sched prio assignment.
          */
         class SchedSenders {
-          PUBLIC:
+          public:
             SchedSenders(HomaConfigDepot* homaConfig, HomaTransport* transport,
                 ReceiveScheduler* rxScheduler);
             ~SchedSenders() {}
             class CompSched {
-              PUBLIC:
+              public:
                 CompSched(){}
                 bool operator()(const SenderState* lhs, const SenderState* rhs)
                 {
@@ -554,7 +554,7 @@ class HomaTransport : public cSimpleModule
              * each new event arrives at the ReceiveScheduler.
              */
             class SchedState {
-              PUBLIC:
+              public:
                 // Total number of senders we allow to be scheduled and granted
                 // at the same time (ie. overcommittment level).
                 int numToGrant;
@@ -573,7 +573,7 @@ class HomaTransport : public cSimpleModule
                 // Index of s in the senders list
                 int sInd;
 
-              PUBLIC:
+              public:
                 void setVar(uint16_t numToGrant, uint32_t headIdx,
                     uint32_t numSenders, SenderState* s, int sInd)
                 {
@@ -610,7 +610,7 @@ class HomaTransport : public cSimpleModule
                 SchedState& old, SchedState& cur);
             void handleGrantTimerEvent(SenderState* s);
 
-          PROTECTED:
+          protected:
             // Back pointer to the transport module.
             HomaTransport* transport;
 
@@ -641,7 +641,7 @@ class HomaTransport : public cSimpleModule
             friend class HomaTransport::ReceiveScheduler;
         }; //end SchedSenders
 
-      PROTECTED:
+      protected:
 
         // Back pointer to the transport instance that owns this scheduler.
         HomaTransport* transport;
@@ -742,7 +742,7 @@ class HomaTransport : public cSimpleModule
         // Tracks the time at which we received the last data packet
         simtime_t lastRecvTime;
 
-      PROTECTED:
+      protected:
         void initialize(HomaConfigDepot* homaConfig,
             PriorityResolver* prioResolver);
         void processReceivedPkt(HomaPkt* rxPkt);
@@ -783,12 +783,12 @@ class HomaTransport : public cSimpleModule
      */
     class TrackRTTs
     {
-      PUBLIC:
+      public:
         TrackRTTs(HomaTransport* transport);
         ~TrackRTTs(){}
         void updateRTTSample(uint32_t senderIP, simtime_t rttVal);
 
-      PUBLIC:
+      public:
         // For each sender, keeps track of the max of reported observed RTT for
         // that sender.
         std::unordered_map<uint32_t, simtime_t> sendersRTT;
@@ -801,7 +801,7 @@ class HomaTransport : public cSimpleModule
         HomaTransport* transport;
     };
 
-  PUBLIC:
+  public:
     virtual void initialize();
     virtual void handleMessage(cMessage *msg);
     virtual void finish();
@@ -825,7 +825,7 @@ class HomaTransport : public cSimpleModule
         STOP  = 6    // When trasnport shutting down and in the cleaning phase.
     };
 
-  PUBLIC:
+  public:
 
     // Handles the transmission of outbound messages based on the logic of
     // HomaProtocol.
@@ -841,7 +841,7 @@ class HomaTransport : public cSimpleModule
     // Templated signals for tracking priority usage statistics.
     std::vector<simsignal_t> priorityStatsSignals;
 
-  PROTECTED:
+  protected:
 
     // UDP socket through which this transport send and receive packets.
     UDPSocket socket;
@@ -880,7 +880,7 @@ class HomaTransport : public cSimpleModule
     friend class ReceiveScheduler;
     friend class SendController;
 
-  PUBLIC:
+  public:
     /**
      * C++ declration of signals defined in .ned file.
      */
@@ -966,10 +966,10 @@ class HomaTransport : public cSimpleModule
  */
 class ActiveScheds : public cObject, noncopyable
 {
-  PUBLIC:
+  public:
     ActiveScheds(){}
 
-  PUBLIC:
+  public:
     uint32_t numActiveSenders;
     simtime_t duration;
 };//end ActiveScheds

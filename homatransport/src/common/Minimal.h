@@ -33,12 +33,12 @@
 // everything becomes public.
 #ifdef EXPOSE_PRIVATES
 #define PRIVATE public
-#define PROTECTED public
-#define PUBLIC public
+#define protected public
+#define public public
 #else
 #define PRIVATE private
-#define PROTECTED protected
-#define PUBLIC public
+#define protected protected
+#define public public
 #endif
 
 /**

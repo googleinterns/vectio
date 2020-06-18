@@ -35,11 +35,11 @@
  */
 class WorkloadSynthesizer : public cSimpleModule
 {
-  PUBLIC:
+  public:
     WorkloadSynthesizer();
     ~WorkloadSynthesizer();
 
-  PROTECTED:
+  protected:
     enum SelfMsgKinds { START = 1, SEND, STOP };
 
     // generates samples from the a given random distribution
@@ -100,7 +100,7 @@ class WorkloadSynthesizer : public cSimpleModule
     // consumer of the object.
     static simsignal_t mesgStatsSignal;
 
-  PROTECTED:
+  protected:
     virtual void initialize();
     virtual void handleMessage(cMessage* msg);
     virtual void finish();
@@ -119,10 +119,10 @@ class WorkloadSynthesizer : public cSimpleModule
 
 class MesgStats : public cObject, noncopyable
 {
-  PUBLIC:
+  public:
     MesgStats(){}
 
-  PUBLIC:
+  public:
     uint64_t mesgSize;
     uint64_t mesgSizeOnWire;
     uint64_t mesgSizeBin;

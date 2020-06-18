@@ -29,17 +29,17 @@ static const uint32_t INTER_PKT_GAP = 12;
 class HomaTransport;
 class HomaPkt : public HomaPkt_Base
 {
-  PUBLIC:
+  public:
     // Points to the transport that owned this packet last time this packet was
     // in an end host. This is only used for statistics collection.
     // This value is assigned when the packet is constructed and is updated by
     // homatransport as soon as it arrives at the transport.
     HomaTransport* ownerTransport;
 
-  PRIVATE:
+  private:
     void copy(const HomaPkt& other);
 
-  PUBLIC:
+  public:
     HomaPkt(HomaTransport* ownerTransport = NULL, const char *name=NULL,
         int kind=0);
     HomaPkt(const HomaPkt& other);
@@ -53,7 +53,7 @@ class HomaPkt : public HomaPkt_Base
      * based on priority numbers.
      */
     class HomaPktSorter {
-      PUBLIC:
+      public:
         HomaPktSorter(){}
 
         /**

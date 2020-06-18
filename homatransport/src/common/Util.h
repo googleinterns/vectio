@@ -19,7 +19,7 @@
 
 class SIM_API HomaMsgSizeFilter : public cObjectResultFilter
 {
-  PUBLIC:
+  public:
     HomaMsgSizeFilter() {}
     virtual void receiveSignal(cResultFilter *prev, simtime_t_cref t,
         cObject *object);
@@ -27,7 +27,7 @@ class SIM_API HomaMsgSizeFilter : public cObjectResultFilter
 
 class SIM_API HomaPktBytesFilter : public cObjectResultFilter
 {
-  PUBLIC:
+  public:
     HomaPktBytesFilter() {}
     virtual void receiveSignal(cResultFilter *prev, simtime_t_cref t,
         cObject *object);
@@ -35,7 +35,7 @@ class SIM_API HomaPktBytesFilter : public cObjectResultFilter
 
 class SIM_API HomaUnschedPktBytesFilter : public cObjectResultFilter
 {
-  PUBLIC:
+  public:
     HomaUnschedPktBytesFilter() {}
     virtual void receiveSignal(cResultFilter *prev, simtime_t_cref t,
         cObject *object);
@@ -43,7 +43,7 @@ class SIM_API HomaUnschedPktBytesFilter : public cObjectResultFilter
 
 class SIM_API HomaGrantPktBytesFilter : public cObjectResultFilter
 {
-  PUBLIC:
+  public:
     HomaGrantPktBytesFilter() {}
     virtual void receiveSignal(cResultFilter *prev, simtime_t_cref t,
         cObject *object);

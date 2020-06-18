@@ -16,6 +16,7 @@
 #include <unordered_set>
 #include<iterator>
 #include<iostream>
+#include<fstream>
 #include "WorkloadSynthesizer.h"
 #include "transport/HomaPkt.h"
 #include "inet/networklayer/common/L3AddressResolver.h"
@@ -29,6 +30,8 @@ simsignal_t WorkloadSynthesizer::rcvdMsgSignal = registerSignal("rcvdMsg");
 simsignal_t WorkloadSynthesizer::msgE2EDelaySignal =
     registerSignal("msgE2EDelay");
 simsignal_t WorkloadSynthesizer::mesgStatsSignal = registerSignal("mesgStats");
+
+std::ofstream outputFile;
 
 WorkloadSynthesizer::WorkloadSynthesizer()
 {
@@ -143,6 +146,12 @@ WorkloadSynthesizer::initialize()
     startTime = par("startTime").doubleValue();
     stopTime = par("stopTime").doubleValue();
     xmlConfig = par("appConfig").xmlValue();
+    const char* resultsDir = "results/";
+    std::string OutputFileName = std::string(
+                resultsDir) + std::string(par("resultFile").stringValue());
+    if(!outputFile.is_open()) {
+        outputFile.open(OutputFileName);
+    }
 
     // Setup templated statistics ans signals
     const char* msgSizeRanges = par("msgSizeRanges").stringValue();
@@ -533,6 +542,15 @@ WorkloadSynthesizer::processRcvdMsg(cPacket* msg)
     mesgStats.queuingDelay =  queuingDelay;
     mesgStats.transportSchedDelay =  rcvdMsg->getTransportSchedDelay();
     emit(mesgStatsSignal, &mesgStats);
+
+    inet::L3Address srcAddr = rcvdMsg->getSrcAddr();
+    inet::L3Address destAddr = rcvdMsg->getDestAddr();
+
+    outputFile  << srcAddr << " " << destAddr << 
+    " " << msgByteLen << " " << rcvdMsg->getMsgCreationTime().dbl() << 
+    " " << simTime() << " " 
+    << completionTime.dbl() << std::endl;
+    outputFile.flush();
 
     delete rcvdMsg;
     numReceived++;

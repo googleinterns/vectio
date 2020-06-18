@@ -13,8 +13,8 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 //
 
-#ifndef __HOMATRANSPORT_PSEUDOIDEALPRIORITYTRANSPORT_H_
-#define __HOMATRANSPORT_PSEUDOIDEALPRIORITYTRANSPORT_H_
+#ifndef __HOMATRANSPORT_VECTIOTRANSPORT_H_
+#define __HOMATRANSPORT_VECTIOTRANSPORT_H_
 
 #include <omnetpp.h>
 #include <unordered_map>
@@ -35,16 +35,13 @@
  * packets in the queue.
  */
 
-class PseudoIdealPriorityTransport : public cSimpleModule
+class VectioTransport : public cSimpleModule
 {
   public:
-    // Signal definitions for statistics gathering
-    static simsignal_t msgsLeftToSendSignal;
-    static simsignal_t bytesLeftToSendSignal;
 
   public:
-    PseudoIdealPriorityTransport();
-    ~PseudoIdealPriorityTransport();
+    VectioTransport();
+    ~VectioTransport();
 
   protected:
     virtual void initialize();
@@ -53,6 +50,9 @@ class PseudoIdealPriorityTransport : public cSimpleModule
     virtual void processStop();
     virtual void processMsgFromApp(AppMessage* sendMsg);
     virtual void processRcvdPkt(HomaPkt* rxPkt);
+    virtual void processReqPkt(HomaPkt* rxPkt);
+    virtual void processGrantPkt(HomaPkt* rxPkt);
+    virtual void processDataPkt(HomaPkt* rxPkt);
     virtual void finish();
 
     /**
@@ -83,6 +83,25 @@ class PseudoIdealPriorityTransport : public cSimpleModule
         simtime_t msgCreationTime;
     };
 
+    class OutboundMsg
+    {
+      public:
+        explicit OutboundMsg();
+        explicit OutboundMsg(HomaPkt* sxPkt);
+        ~OutboundMsg();
+        bool rmvAckedPktData(HomaPkt* ack);
+
+      public:
+        int numBytesToSend;
+        uint32_t nextByteToSend;
+        uint32_t msgByteLen;
+        uint32_t totalBytesOnWire;
+        inet::L3Address srcAddr;
+        inet::L3Address destAddr;
+        uint64_t msgIdAtSender;
+        simtime_t msgCreationTime;
+    };
+
   protected:
 
     // UDP socket through which this transport send and receive packets.
@@ -95,6 +114,8 @@ class PseudoIdealPriorityTransport : public cSimpleModule
     // udp ports through which this transport send and receive packets
     int localPort;
     int destPort;
+
+    bool logEvents;
 
     // variables and states kept for administering outbound messages
     uint64_t msgId; // unique monotonically increasing id for
@@ -109,6 +130,13 @@ class PseudoIdealPriorityTransport : public cSimpleModule
     typedef std::unordered_map<uint64_t, std::list<InboundMsg*>>
             IncompleteRxMsgsMap;
     IncompleteRxMsgsMap incompleteRxMsgsMap;
+
+    // State and variables kept for managing outbound messages
+    // Defines a map to keep a all partially fulfilled outbound messages. 
+    // The key is msgId at the sender and value is the corresponding outboundmsg 
+    typedef std::map<uint64_t, OutboundMsg*>
+            IncompleteSxMsgsMap;
+    IncompleteSxMsgsMap incompleteSxMsgsMap;
 };
 
 #endif

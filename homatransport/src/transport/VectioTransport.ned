@@ -13,33 +13,25 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 //
 
-#ifndef __HOMATRANSPORT_LAGGER_H_
-#define __HOMATRANSPORT_LAGGER_H_
+package homatransport.transport;
+import homatransport.transport.ITransportScheme;
 
-#include <omnetpp.h>
-#include "common/Minimal.h"
-
-/**
- * delays a packet before sending it out. This module is intended for the use
- * in EthernetInterface module. More details in the ned file.
- */
-class Lagger : public cSimpleModule
+//
+// Defines the vectio transport
+//
+simple VectioTransport like ITransportScheme
 {
-  public:
-    Lagger();
-    ~Lagger(){}
+    parameters:
+        xml transportConfig = default(xml("<param/>"));
+        int localPort = default(-1);
+        int destPort;
+        int nicLinkSpeed @unit(Gbps) = default(10Gbps);
+        string logFile = default("output.log");
+        bool logEvents = default(true);
 
-  protected:
-    virtual void initialize();
-    virtual void handleMessage(cMessage *msg);
-    virtual void inputHookPktHandler(cMessage* msg);
-    virtual void outputHookPktHandler(cMessage* msg);
-
-
-  protected:
-    std::string hookType;
-    cPar* delayPar;
-    cModule* mac;
-};
-
-#endif
+    gates:
+        input appIn[] @labels(AppMessage/down);
+        input udpIn @labels(UDPControlInfo/up);
+        output appOut[] @labels(AppMessage/up);
+        output udpOut @labels(UDPControlInfo/down);
+}

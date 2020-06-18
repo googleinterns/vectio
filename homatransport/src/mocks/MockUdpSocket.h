@@ -6,10 +6,10 @@
 #include "transport/HomaPkt.h"
 
 class MockUdpSocket {
-  PUBLIC:
+  public:
     std::vector<cPacket*> sxPkts;
 
-  PUBLIC:
+  public:
     MockUdpSocket();
     ~MockUdpSocket();
     void setOutputGate(cGate* gate);

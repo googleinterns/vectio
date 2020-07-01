@@ -41,6 +41,7 @@ WorkloadSynthesizer::WorkloadSynthesizer()
     sendMsgSize = -1;
     nextDestHostId = -1;
     hostIdAddrMap.clear();
+    addrHostidMap.clear();
 }
 
 WorkloadSynthesizer::~WorkloadSynthesizer()
@@ -235,7 +236,7 @@ WorkloadSynthesizer::initialize()
         distSelector =
                 MsgSizeDistributions::DistributionChoice::SIZE_IN_FILE;
         distFileName = std::string(
-                "../../sizeDistributions/HostidSizeInterarrival.txt");
+                "../../sizeDistributions/HostidSizeInterarrival-test.txt");
     } else {
         throw cRuntimeError("'%s': Not a valie workload type.",workLoadType);
     }
@@ -337,6 +338,7 @@ WorkloadSynthesizer::parseAndProcessXMLConfig()
                     << token << endl;
         }
         hostIdAddrMap[mod->getIndex()] = result;
+        addrHostidMap[result.str()] = mod->getIndex();
 
         if (!destHostIds.empty()) {
             if (destHostIds.count(-1)) {
@@ -528,10 +530,10 @@ WorkloadSynthesizer::processRcvdMsg(cPacket* msg)
     inet::L3Address srcAddr = rcvdMsg->getSrcAddr();
     inet::L3Address destAddr = rcvdMsg->getDestAddr();
 
-    outputFile  << srcAddr << " " << destAddr << 
+    outputFile  <<  addrHostidMap[srcAddr.str()] << " " << parentHostIdx << " " << srcAddr << " " << destAddr << 
     " " << msgByteLen << " " << rcvdMsg->getMsgCreationTime().dbl() << 
     " " << simTime() << " " 
-    << completionTime.dbl() << std::endl;
+    << completionTime.dbl() << " " << idealMsgEndToEndDelay(rcvdMsg) << std::endl;
     outputFile.flush();
 
     delete rcvdMsg;

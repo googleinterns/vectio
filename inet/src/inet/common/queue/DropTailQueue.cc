@@ -21,6 +21,10 @@
 #include "inet/linklayer/ethernet/EtherMACBase.h"
 #include "inet/linklayer/ethernet/Ethernet.h"
 #include "transport/HomaPkt.h"
+#include <fstream>
+
+extern std::ofstream logFile;
+extern bool logPacketEvents;
 
 namespace inet {
 
@@ -97,6 +101,36 @@ cMessage *DropTailQueue::enqueue(cMessage *msg)
     cPacket* pkt = check_and_cast<cPacket*>(msg);
     queue.insert(pkt);
 
+    if(logPacketEvents){
+        cPacket* pktTemp = dynamic_cast<cPacket*>(msg);
+        pktTemp = HomaPkt::searchEncapHomaPkt(pktTemp);
+        if (pktTemp) {
+            HomaPkt* homaPkt = check_and_cast<HomaPkt*>(pktTemp);
+            cModule* parentHost = this->getParentModule();
+            cModule* grandParentHost = parentHost->getParentModule();
+            cModule* grandGrandParentHost = grandParentHost->getParentModule();
+            switch (homaPkt->getPktType()) {
+                case PktType::REQUEST:
+                    logFile << simTime() << " req packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile.flush();
+                    break;
+                case PktType::GRANT:
+                    logFile << simTime() << " grant packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile.flush();
+                    break;
+                case PktType::SCHED_DATA:
+                    logFile << simTime() << " sched data packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile.flush();
+                    break;
+                case PktType::UNSCHED_DATA:
+                    
+                    break;
+                // default:
+                //     throw cRuntimeError("HomaPkt arrived at the queue has unknown type.");
+            }
+        }
+    }
+
     //emit(queueLengthSignal, queue.length());
     //emit(queueByteLengthSignal, queue.getByteLength());
     return NULL;
@@ -108,6 +142,35 @@ cMessage *DropTailQueue::dequeue()
         return NULL;
 
     cPacket* pkt = queue.pop();
+
+    if(logPacketEvents){
+        cPacket* pktTemp = HomaPkt::searchEncapHomaPkt(pkt);
+        if (pktTemp) {
+            HomaPkt* homaPkt = check_and_cast<HomaPkt*>(pktTemp);
+            cModule* parentHost = this->getParentModule();
+            cModule* grandParentHost = parentHost->getParentModule();
+            cModule* grandGrandParentHost = grandParentHost->getParentModule();
+            switch (homaPkt->getPktType()) {
+                case PktType::REQUEST:
+                    logFile << simTime() << " req packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile.flush();
+                    break;
+                case PktType::GRANT:
+                    logFile << simTime() << " grant packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile.flush();
+                    break;
+                case PktType::SCHED_DATA:
+                    logFile << simTime() << " sched data packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile.flush();
+                    break;
+                case PktType::UNSCHED_DATA:
+                    
+                    break;
+                // default:
+                //     throw cRuntimeError("HomaPkt arrived at the queue has unknown type.");
+            }
+        }
+    }
 
     // statistics
     //emit(queueLengthSignal, queue.length());

@@ -78,13 +78,13 @@ network DcnTopo
 
         // Set input and output hooks in NICs to "Lagger" type and set the delayPar to
         // hostSwTurnAroundTime
-        **.eth[*].numInputHooks = 1;
-        **.eth[*].inputHook[*].typename = "Lagger";
-        **.eth[*].inputHook[*].hookType = "InputHook";
+        nic[*].eth[*].numInputHooks = 1;
+        nic[*].eth[*].inputHook[*].typename = "Lagger";
+        nic[*].eth[*].inputHook[*].hookType = "InputHook";
         nic[*].eth[*].inputHook[*].delayPar = convertUnit(hostSwTurnAroundTime, "s");
-        **.eth[*].numOutputHooks = 1;
-        **.eth[*].outputHook[*].typename = "Lagger";
-        **.eth[*].outputHook[*].hookType = "OutputHook";
+        nic[*].eth[*].numOutputHooks = 1;
+        nic[*].eth[*].outputHook[*].typename = "Lagger";
+        nic[*].eth[*].outputHook[*].hookType = "OutputHook";
         nic[*].eth[*].outputHook[*].delayPar = convertUnit(hostSwTurnAroundTime, "s");
 
     types:

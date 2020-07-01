@@ -19,6 +19,7 @@
 #include <omnetpp.h>
 #include <unordered_map>
 #include <list>
+#include <queue>
 #include "common/Minimal.h"
 #include "inet/transportlayer/contract/udp/UDPSocket.h"
 #include "application/AppMessage_m.h"
@@ -34,6 +35,14 @@
  * choose the lowest priority packet that belongs to shortes message among all
  * packets in the queue.
  */
+class TimerContext
+        {
+            public:
+              inet::L3Address srcAddr;
+              inet::L3Address destAddr;
+              uint64_t msgIdAtSender;
+              int missedPktSeqNo;
+        };
 
 class VectioTransport : public cSimpleModule
 {
@@ -53,6 +62,11 @@ class VectioTransport : public cSimpleModule
     virtual void processReqPkt(HomaPkt* rxPkt);
     virtual void processGrantPkt(HomaPkt* rxPkt);
     virtual void processDataPkt(HomaPkt* rxPkt);
+    virtual void processAckPkt(HomaPkt* rxPkt);
+    virtual void processNackPkt(HomaPkt* rxPkt);
+    virtual void processInboundGrantQueue();
+    virtual void processOutboundGrantQueue();
+    virtual void processRetxTimer(TimerContext* timerContext);
     virtual void finish();
 
     /**
@@ -62,16 +76,29 @@ class VectioTransport : public cSimpleModule
     enum SelfMsgKind
     {
         START = 1,  // Timer type when the transport is in initialization phase.
-        STOP  = 2   // Timer type when the transport is in cleaning phase.
+        STOP  = 2,   // Timer type when the transport is in cleaning phase.
+        IBGRANTQUEUE = 3, // Timer type when the transport wants to process the 
+                       // grant queue
+        OBGRANTQUEUE = 4, // Timer type when the transport wants to process the 
+                       // grant queue
+        RETXTIMER = 5
     };
 
     class InboundMsg
     {
+      protected:
+        //set of received packets
+        std::set<int> rxPkts;
+        // map of missed pkts -- pktSeqNo -- to the time detected missing
+        std::map<int,simtime_t> missedPkts;
+
       public:
         explicit InboundMsg();
-        explicit InboundMsg(HomaPkt* rxPkt);
+        explicit InboundMsg(HomaPkt* rxPkt, VectioTransport* transport);
         ~InboundMsg();
         bool appendPktData(HomaPkt* rxPkt);
+        void checkAndSendNack();
+        bool updateRxAndMissedPkts(int pktSeqNo);
 
       public:
         int numBytesToRecv;
@@ -81,6 +108,12 @@ class VectioTransport : public cSimpleModule
         inet::L3Address destAddr;
         uint64_t msgIdAtSender;
         simtime_t msgCreationTime;
+        double retxTimeout = 10.0e-6;
+        // int grantSizeBytes = 1000; //TODO -- get this value from the parent class automatically
+        int largestPktSeqRcvd = -1;
+        int largestByteRcvd = -1;
+        VectioTransport* transport;
+        int bytesGranted = -1;
     };
 
     class OutboundMsg
@@ -100,6 +133,7 @@ class VectioTransport : public cSimpleModule
         inet::L3Address destAddr;
         uint64_t msgIdAtSender;
         simtime_t msgCreationTime;
+        // int grantSizeBytes = 1000; //TODO -- get this value from the parent class automatically
     };
 
   protected:
@@ -112,18 +146,21 @@ class VectioTransport : public cSimpleModule
     // Timer object for this transport. Will be used for implementing timely
     // scheduled
     cMessage* selfMsg;
+    cMessage* inboundGrantQueueTimer;
+    cMessage* outboundGrantQueueTimer;
+    cMessage* retxTimer;
 
     // udp ports through which this transport send and receive packets
     int localPort;
     int destPort;
 
     bool logEvents;
+    bool logPacketEvents;
 
     // variables and states kept for administering outbound messages
     uint64_t msgId; // unique monotonically increasing id for
                     // each messages to send
     uint32_t maxDataBytesInPkt;
-    int grantSizeBytes = 1000;
 
     // State and variables kept for managing inbound messages
     // Defines a map to keep a all partially received inbound messages. The key
@@ -140,6 +177,22 @@ class VectioTransport : public cSimpleModule
     typedef std::map<uint64_t, OutboundMsg*>
             IncompleteSxMsgsMap;
     IncompleteSxMsgsMap incompleteSxMsgsMap;
+
+    //inboundGrantQueue used at the sender to pace & schedule transmit data pkts
+    std::queue<HomaPkt*> inboundGrantQueue;
+
+    //outboundGrantQueue used at the receiver to pace & schedule grant pkts 
+    std::queue<HomaPkt*> outboundGrantQueue;
+    bool inboundGrantQueueBusy;
+    bool outboundGrantQueueBusy;
+    int freeGrantSize = 5000;
+    double nicBandwidth = 10e9; //TODO initialize using ini file
+
+    typedef std::map<uint64_t, std::set<inet::L3Address>> FinishedMsgsMap;
+    FinishedMsgsMap finishedMsgs;
+
+    public:
+      int grantSizeBytes = 1000;
 };
 
 #endif

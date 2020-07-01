@@ -94,7 +94,7 @@ VectioTransport::initialize()
     inboundGrantQueueBusy = false;
     outboundGrantQueueBusy = false;
 
-    srand(time(NULL));
+    srand(1);
 }
 
 void
@@ -398,69 +398,62 @@ VectioTransport::processGrantPkt(HomaPkt* rxPkt)
     // Remove the message from the map once done sending all the packets
     uint64_t msgId = rxPkt->getMsgId();
 
-    // make sure the msg exists in the map
-    assert(incompleteSxMsgsMap.find(msgId) != incompleteSxMsgsMap.end());
-    OutboundMsg* outboundSxMsg = incompleteSxMsgsMap[msgId];
+    //make sure the msg exists in the map
+    if(incompleteSxMsgsMap.find(msgId) != incompleteSxMsgsMap.end()){
+        OutboundMsg* outboundSxMsg = incompleteSxMsgsMap[msgId];
 
-    // send all the data packets for this message
-    uint32_t msgByteLen = outboundSxMsg->msgByteLen;
-    simtime_t msgCreationTime = outboundSxMsg->msgCreationTime;
-    inet::L3Address destAddr = outboundSxMsg->destAddr;
-    inet::L3Address srcAddr = outboundSxMsg->srcAddr;
-    uint32_t firstByte = outboundSxMsg->nextByteToSend;
-    uint32_t lastByte = 0;
-    uint32_t bytesToSend = outboundSxMsg->numBytesToSend;
-    
-    // uint32_t pktDataBytes = std::min(bytesToSend, maxDataBytesInPkt);
-    GrantFields grantFields = rxPkt->getGrantFields();
-    uint32_t pktDataBytes = grantFields.grantBytes;
-    lastByte = firstByte + pktDataBytes - 1;
-    
-    // determine whether this is free grant or scheduled grant
-    UnschedFields unschedFields;
-    SchedDataFields schedFields;
-    if(grantFields.isFree){
-        unschedFields.firstByte = firstByte;
-        unschedFields.lastByte = lastByte;
-        unschedFields.msgByteLen = msgByteLen;
-        unschedFields.msgCreationTime = msgCreationTime;
-        unschedFields.totalUnschedBytes = std::min((int)msgByteLen,freeGrantSize);
+        //send all the data packets for this message
+        uint32_t msgByteLen = outboundSxMsg->msgByteLen;
+        simtime_t msgCreationTime = outboundSxMsg->msgCreationTime;
+        inet::L3Address destAddr = outboundSxMsg->destAddr;
+        inet::L3Address srcAddr = outboundSxMsg->srcAddr;
+        uint32_t firstByte = outboundSxMsg->nextByteToSend;
+        uint32_t lastByte = 0;
+        uint32_t bytesToSend = outboundSxMsg->numBytesToSend;
+        
+        // uint32_t pktDataBytes = std::min(bytesToSend, maxDataBytesInPkt);
+        GrantFields grantFields = rxPkt->getGrantFields();
+        uint32_t pktDataBytes = grantFields.grantBytes;
+        lastByte = firstByte + pktDataBytes - 1;
+        
+        // determine whether this is free grant or scheduled grant
+        UnschedFields unschedFields;
+        SchedDataFields schedFields;
+        if(grantFields.isFree){
+            unschedFields.firstByte = firstByte;
+            unschedFields.lastByte = lastByte;
+            unschedFields.msgByteLen = msgByteLen;
+            unschedFields.msgCreationTime = msgCreationTime;
+            unschedFields.totalUnschedBytes = std::min((int)msgByteLen,freeGrantSize);
+        }
+        else{
+            schedFields.firstByte = firstByte;
+            schedFields.lastByte = lastByte;
+        }
+
+        bytesToSend -= pktDataBytes;
+        firstByte = lastByte + 1;
+        outboundSxMsg->nextByteToSend = firstByte;
+
+        // Create a homa pkt for transmission
+        HomaPkt* sxPkt = new HomaPkt();
+        sxPkt->setSrcAddr(srcAddr);
+        sxPkt->setDestAddr(destAddr);
+        sxPkt->setMsgId(msgId);
+        // sxPkt->setPriority(bytesToSend);
+        if(grantFields.isFree){
+            sxPkt->setPktType(PktType::UNSCHED_DATA);
+            sxPkt->setUnschedFields(unschedFields);
+        }
+        else{
+            sxPkt->setPktType(PktType::SCHED_DATA);
+            sxPkt->setSchedDataFields(schedFields);
+        }
+        sxPkt->setByteLength(pktDataBytes + sxPkt->headerSize());
+
+        // Send the packet out
+        socket.sendTo(sxPkt, sxPkt->getDestAddr(), destPort);
     }
-    else{
-        schedFields.firstByte = firstByte;
-        schedFields.lastByte = lastByte;
-    }
-
-    bytesToSend -= pktDataBytes;
-    firstByte = lastByte + 1;
-    outboundSxMsg->nextByteToSend = firstByte;
-
-    // Create a homa pkt for transmission
-    HomaPkt* sxPkt = new HomaPkt();
-    sxPkt->setSrcAddr(srcAddr);
-    sxPkt->setDestAddr(destAddr);
-    sxPkt->setMsgId(msgId);
-    // sxPkt->setPriority(bytesToSend);
-    if(grantFields.isFree){
-        sxPkt->setPktType(PktType::UNSCHED_DATA);
-        sxPkt->setUnschedFields(unschedFields);
-    }
-    else{
-        sxPkt->setPktType(PktType::SCHED_DATA);
-        sxPkt->setSchedDataFields(schedFields);
-    }
-    sxPkt->setByteLength(pktDataBytes + sxPkt->headerSize());
-
-    // Send the packet out
-    socket.sendTo(sxPkt, sxPkt->getDestAddr(), destPort);
-
-    //remove the message from the map if the message done sending all the bytes
-    // //TODO: in the future would depend upon ACKs
-    // if(lastByte == outboundSxMsg->msgByteLen){
-    //     auto it = incompleteSxMsgsMap.find(msgId);
-    //     assert(it != incompleteSxMsgsMap.end());
-    //     incompleteSxMsgsMap.erase(it);
-    // }
 
 }
 
@@ -474,9 +467,9 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
         logFile.flush();
     }
     //////////// TESTING PKT DROPS /////////////////
-    int dropPkt = rand() % 4;
+    int dropPkt = rand() % 20;
     if(dropPkt == 0){
-        logFile << "Sorry, dropping this pkt!!!";
+        logFile << "Sorry, dropping this pkt!!!" << " Msg: " << rxPkt->getMsgId() << std::endl;
         delete rxPkt;
         return;
     }
@@ -625,7 +618,7 @@ VectioTransport::processAckPkt(HomaPkt* rxPkt)
 void
 VectioTransport::processNackPkt(HomaPkt* rxPkt)
 {
-    logFile << simTime() << " Received NACK pkt" << std::endl;
+    logFile << simTime() << " Received NACK pkt" << " Msg: " << rxPkt->getMsgId() << std::endl;
     //check whether the outboundsx msg still exists
     auto itr = incompleteSxMsgsMap.find(rxPkt->getMsgId());
     if(itr != incompleteSxMsgsMap.end()){
@@ -819,7 +812,7 @@ VectioTransport::InboundMsg::checkAndSendNack()
                 schedFields.lastByte = lastByte;
                 nackPkt->setSchedDataFields(schedFields);
                 transport->socket.sendTo(nackPkt,nackPkt->getDestAddr(),transport->destPort);
-                logFile << "Sent nack for missed pkt: " << firstByte << " " << lastByte << std::endl;
+                logFile << "Sent nack for missed pkt: " << firstByte << " " << lastByte << " Msg: " << msgIdAtSender << std::endl;
             }
         }
         if(largestByteRcvd < bytesGranted - 1){
@@ -842,7 +835,7 @@ VectioTransport::InboundMsg::checkAndSendNack()
                 schedFields.lastByte = lastByte;
                 nackPkt->setSchedDataFields(schedFields);
                 transport->socket.sendTo(nackPkt,nackPkt->getDestAddr(),transport->destPort);
-                logFile << "Sent nack for last missed pkt: " << firstByte << " " << lastByte << std::endl;
+                logFile << "Sent nack for last missed pkt: " << firstByte << " " << lastByte << " Msg: " << msgIdAtSender << std::endl;
             }
         }
 

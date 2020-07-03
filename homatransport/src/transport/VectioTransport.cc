@@ -145,7 +145,7 @@ VectioTransport::handleMessage(cMessage *msg)
                 processInboundGrantQueue();
                 break;
             case SelfMsgKind::OBGRANTQUEUE:
-                processOutboundGrantQueue();
+                processPendingMsgsToGrant();
                 break;
             case SelfMsgKind::RETXTIMER:
             {
@@ -340,28 +340,54 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
             return;
         }
         //create and send per-packet grants for the message
-        do{
-            uint32_t pktDataBytes = std::min(bytesToSend, this->grantSizeBytes);
-            HomaPkt* grntPkt = new HomaPkt();
-            GrantFields grantFields;
-            grantFields.grantBytes = pktDataBytes;
-            grantFields.isFree = false;
-            grntPkt->setSrcAddr(inboundRxMsg->destAddr);
-            grntPkt->setDestAddr(inboundRxMsg->srcAddr);
-            grntPkt->setMsgId(inboundRxMsg->msgIdAtSender);
-            // grntPkt->setPriority(bytesToSend); //TODO think about the priority for grntPkt
-            grntPkt->setPktType(PktType::GRANT);
-            grntPkt->setGrantFields(grantFields);
-            grntPkt->setByteLength(grntPkt->headerSize());
-            bytesToSend -= pktDataBytes;
-            assert(bytesToSend >= 0);
+        // do{
+        //     uint32_t pktDataBytes = std::min(bytesToSend, this->grantSizeBytes);
+        //     HomaPkt* grntPkt = new HomaPkt();
+        //     GrantFields grantFields;
+        //     grantFields.grantBytes = pktDataBytes;
+        //     grantFields.isFree = false;
+        //     grntPkt->setSrcAddr(inboundRxMsg->destAddr);
+        //     grntPkt->setDestAddr(inboundRxMsg->srcAddr);
+        //     grntPkt->setMsgId(inboundRxMsg->msgIdAtSender);
+        //     // grntPkt->setPriority(bytesToSend); //TODO think about the priority for grntPkt
+        //     grntPkt->setPktType(PktType::GRANT);
+        //     grntPkt->setGrantFields(grantFields);
+        //     grntPkt->setByteLength(grntPkt->headerSize());
+        //     bytesToSend -= pktDataBytes;
+        //     assert(bytesToSend >= 0);
 
-            // Send the packet out
-            outboundGrantQueue.push(grntPkt);
-        }while(bytesToSend > 0);
+        //     // Send the packet out
+        //     // outboundGrantQueue.push(grntPkt);
+        // }while(bytesToSend > 0);
 
-        if(!outboundGrantQueueBusy){
-            processOutboundGrantQueue();
+        if(bytesToSend > 0){
+            //add to pending messages to be granted
+            auto itr = pendingMsgsToGrant.find(inboundRxMsg->msgIdAtSender);
+            //make sure that the current Msg doesn't already exist
+            if(itr != pendingMsgsToGrant.end()){
+                for(auto itr2 = itr->second.begin(); itr2 != itr->second.end();
+                itr2++){
+                    auto src = itr2->first;
+                    assert(src != inboundRxMsg->srcAddr);
+                }
+            }
+            //add a new pair to the pendingMsgs
+            if(itr == pendingMsgsToGrant.end()){
+                std::set<std::pair<inet::L3Address,int>> tempSet;
+                tempSet.clear();
+                tempSet.insert(std::pair<inet::L3Address,int>(
+                    inboundRxMsg->srcAddr,bytesToSend));
+                pendingMsgsToGrant.insert(std::pair<uint64_t, 
+                std::set<std::pair<inet::L3Address,int>>>(
+                    inboundRxMsg->msgIdAtSender,tempSet));
+            }
+            else{
+                itr->second.insert(std::pair<inet::L3Address,int>(inboundRxMsg->srcAddr,bytesToSend));
+            }
+
+            if(!outboundGrantQueueBusy){
+                processPendingMsgsToGrant();
+            }
         }
 
         //create a new timercontext to check the missed packets
@@ -467,12 +493,12 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
         logFile.flush();
     }
     //////////// TESTING PKT DROPS /////////////////
-    int dropPkt = rand() % 20;
-    if(dropPkt == 0){
-        logFile << "Sorry, dropping this pkt!!!" << " Msg: " << rxPkt->getMsgId() << std::endl;
-        delete rxPkt;
-        return;
-    }
+    // int dropPkt = rand() % 20;
+    // if(dropPkt == 0){
+    //     logFile << "Sorry, dropping this pkt!!!" << " Msg: " << rxPkt->getMsgId() << std::endl;
+    //     delete rxPkt;
+    //     return;
+    // }
 
     ////////////////////////////////////////////////
     // Find the InboundMsg corresponding to this rxPkt in the
@@ -514,28 +540,54 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
         bytesToSend -= alreadyGrantedBytes;
         inboundRxMsg->bytesGranted = alreadyGrantedBytes;
         //create and send per-packet grants for the message
-        while(bytesToSend > 0){
-            uint32_t pktDataBytes = std::min(bytesToSend, this->grantSizeBytes);
-            HomaPkt* grntPkt = new HomaPkt();
-            GrantFields grantFields;
-            grantFields.grantBytes = pktDataBytes;
-            grantFields.isFree = false;
-            grntPkt->setSrcAddr(inboundRxMsg->destAddr);
-            grntPkt->setDestAddr(inboundRxMsg->srcAddr);
-            grntPkt->setMsgId(inboundRxMsg->msgIdAtSender);
-            // grntPkt->setPriority(bytesToSend); //TODO think about the priority for grntPkt
-            grntPkt->setPktType(PktType::GRANT);
-            grntPkt->setGrantFields(grantFields);
-            grntPkt->setByteLength(grntPkt->headerSize());
-            bytesToSend -= pktDataBytes;
-            assert(bytesToSend >= 0);
+        // while(bytesToSend > 0){
+        //     uint32_t pktDataBytes = std::min(bytesToSend, this->grantSizeBytes);
+        //     HomaPkt* grntPkt = new HomaPkt();
+        //     GrantFields grantFields;
+        //     grantFields.grantBytes = pktDataBytes;
+        //     grantFields.isFree = false;
+        //     grntPkt->setSrcAddr(inboundRxMsg->destAddr);
+        //     grntPkt->setDestAddr(inboundRxMsg->srcAddr);
+        //     grntPkt->setMsgId(inboundRxMsg->msgIdAtSender);
+        //     // grntPkt->setPriority(bytesToSend); //TODO think about the priority for grntPkt
+        //     grntPkt->setPktType(PktType::GRANT);
+        //     grntPkt->setGrantFields(grantFields);
+        //     grntPkt->setByteLength(grntPkt->headerSize());
+        //     bytesToSend -= pktDataBytes;
+        //     assert(bytesToSend >= 0);
 
-            // Send the packet out
-            outboundGrantQueue.push(grntPkt);
-        };
+        //     // Send the packet out
+        //     // outboundGrantQueue.push(grntPkt);
+        // };
 
-        if(!outboundGrantQueueBusy){
-            processOutboundGrantQueue();
+        //add to pending messages to be granted
+        if(bytesToSend > 0){
+            auto it = pendingMsgsToGrant.find(inboundRxMsg->msgIdAtSender);
+            //make sure that the current Msg doesn't already exist
+            if(it != pendingMsgsToGrant.end()){
+                for(auto it2 = it->second.begin(); it2 != it->second.end();
+                it2++){
+                    auto src = it2->first;
+                    assert(src != inboundRxMsg->srcAddr);
+                }
+            }
+            //add a new pair to the pendingMsgs
+            if(it == pendingMsgsToGrant.end()){
+                std::set<std::pair<inet::L3Address,int>> tempSet;
+                tempSet.clear();
+                tempSet.insert(std::pair<inet::L3Address,int>(
+                    inboundRxMsg->srcAddr,bytesToSend));
+                pendingMsgsToGrant.insert(std::pair<uint64_t, 
+                std::set<std::pair<inet::L3Address,int>>>(
+                    inboundRxMsg->msgIdAtSender,tempSet));
+            }
+            else{
+                it->second.insert(std::pair<inet::L3Address,int>(inboundRxMsg->srcAddr,bytesToSend));
+            }
+
+            if(!outboundGrantQueueBusy){
+                processPendingMsgsToGrant();
+            }
         }
 
         //create a new timercontext to check the missed packets
@@ -702,6 +754,106 @@ VectioTransport::processOutboundGrantQueue(){
     else{
         outboundGrantQueueBusy = false;
         return;
+    }
+}
+
+void
+VectioTransport::processPendingMsgsToGrant(){
+    if(pendingMsgsToGrant.empty() != true){
+        outboundGrantQueueBusy = true;
+        HomaPkt* grntPkt = extractGrantPkt("SRPT");
+        assert(grntPkt->getPktType() == PktType::GRANT);
+        socket.sendTo(grntPkt, grntPkt->getDestAddr(), destPort);
+        //update the bytes granted for the inbound msg
+        uint64_t msgId = grntPkt->getMsgId();
+        inet::L3Address srcAddr = grntPkt->getDestAddr();
+        InboundMsg* inboundRxMsg = NULL;
+        std::list<InboundMsg*> &rxMsgList = incompleteRxMsgsMap[msgId];
+        for(auto inbndIter = rxMsgList.begin(); 
+            inbndIter != rxMsgList.end(); ++inbndIter){
+            InboundMsg* incompleteRxMsg = *inbndIter;
+            ASSERT(incompleteRxMsg->msgIdAtSender == msgId);
+            if (incompleteRxMsg->srcAddr == srcAddr) {
+                inboundRxMsg = incompleteRxMsg;
+                break;
+            }
+        }
+
+        assert(inboundRxMsg != NULL);
+        inboundRxMsg->bytesGranted += grntPkt->getGrantFields().grantBytes;
+        logFile << simTime() << " bytes granted: " << inboundRxMsg->bytesGranted << std::endl;
+
+        //schedule the next grant queue processing event after transmission time
+        //of data packet corresponding to the current grant packet
+        double trans_delay = (grntPkt->getGrantFields().grantBytes + grntPkt->headerSize()) * 8.0 /nicBandwidth;
+        scheduleAt(simTime() + trans_delay, outboundGrantQueueTimer);
+    }
+    else{
+        outboundGrantQueueBusy = false;
+        return;
+    }
+}
+
+HomaPkt*
+VectioTransport::extractGrantPkt(const char* schedulingPolicy){
+    if(schedulingPolicy == "SRPT"){
+        //find the msg with smallest remaining bytes to grant first
+        int minBytesToGrant = INT_MAX;
+        uint64_t chosenMsgId;
+        inet::L3Address chosenSrcAddr;
+        assert(pendingMsgsToGrant.size() > 0);
+        auto chosenItr = pendingMsgsToGrant.begin();
+        auto chosenItr2 = chosenItr->second.begin();
+        for(auto itr = pendingMsgsToGrant.begin(); itr != pendingMsgsToGrant.end();
+        itr++){
+            uint64_t messageID = itr->first;
+            for(auto itr2 = itr->second.begin(); itr2 != itr->second.end();
+            itr2++){
+                inet::L3Address messageSrcAddr = itr2->first;
+                int bytesToGrant = itr2->second;
+                assert(bytesToGrant > 0);
+                if(bytesToGrant < minBytesToGrant){
+                    chosenMsgId = messageID;
+                    chosenSrcAddr = messageSrcAddr;
+                    chosenItr = itr;
+                    chosenItr2 = itr2;
+                    minBytesToGrant = bytesToGrant;
+                }
+            }
+        }
+        //create grant packet using the chosen message
+        assert(chosenItr == pendingMsgsToGrant.find(chosenMsgId));
+        
+        uint32_t pktDataBytes = std::min(chosenItr2->second, this->grantSizeBytes);
+        HomaPkt* grntPkt = new HomaPkt();
+        GrantFields grantFields;
+        grantFields.grantBytes = pktDataBytes;
+        grantFields.isFree = false;
+        grntPkt->setSrcAddr(srcAddress);
+        grntPkt->setDestAddr(chosenSrcAddr);
+        grntPkt->setMsgId(chosenMsgId);
+        // grntPkt->setPriority(bytesToSend); //TODO think about the priority for grntPkt
+        grntPkt->setPktType(PktType::GRANT);
+        grntPkt->setGrantFields(grantFields);
+        grntPkt->setByteLength(grntPkt->headerSize());
+        auto remainingBytesToGrant = chosenItr2->second - pktDataBytes;
+        chosenItr->second.erase(chosenItr2);
+        if(remainingBytesToGrant > 0){
+            chosenItr->second.insert(std::pair<inet::L3Address,int>(chosenSrcAddr,remainingBytesToGrant));
+        }
+        else if(remainingBytesToGrant == 0){
+            if(chosenItr->second.size() == 0){
+                pendingMsgsToGrant.erase(chosenItr);
+            }
+        }
+        else{
+            assert(false);
+        }
+        return grntPkt;
+
+    }
+    else{
+        assert(false);    
     }
 }
 

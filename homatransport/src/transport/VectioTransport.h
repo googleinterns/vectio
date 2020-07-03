@@ -66,8 +66,11 @@ class VectioTransport : public cSimpleModule
     virtual void processNackPkt(HomaPkt* rxPkt);
     virtual void processInboundGrantQueue();
     virtual void processOutboundGrantQueue();
+    virtual void processPendingMsgsToGrant();
     virtual void processRetxTimer(TimerContext* timerContext);
     virtual void finish();
+
+    virtual HomaPkt* extractGrantPkt(const char* schedulingPolicy);
 
     /**
      * A self message essentially models a timer object for this transport and
@@ -187,6 +190,12 @@ class VectioTransport : public cSimpleModule
     bool outboundGrantQueueBusy;
     int freeGrantSize = 5000;
     double nicBandwidth = 10e9; //TODO initialize using ini file
+
+    //use this instead of outbound grant queue
+    //whenever you're ready to send any grant, find the message to send the 
+    //grant to using the desired scheduling criteria
+    typedef std::map<uint64_t, std::set<std::pair<inet::L3Address,int>>> PendingMsgsToGrant;
+    PendingMsgsToGrant pendingMsgsToGrant;
 
     typedef std::map<uint64_t, std::set<inet::L3Address>> FinishedMsgsMap;
     FinishedMsgsMap finishedMsgs;

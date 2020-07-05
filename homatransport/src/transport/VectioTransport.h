@@ -67,10 +67,12 @@ class VectioTransport : public cSimpleModule
     virtual void processInboundGrantQueue();
     virtual void processOutboundGrantQueue();
     virtual void processPendingMsgsToGrant();
+    virtual void processPendingMsgsToSend();
     virtual void processRetxTimer(TimerContext* timerContext);
     virtual void finish();
 
     virtual HomaPkt* extractGrantPkt(const char* schedulingPolicy);
+    virtual HomaPkt* extractDataPkt(const char* schedulingPolicy);
 
     /**
      * A self message essentially models a timer object for this transport and
@@ -196,6 +198,9 @@ class VectioTransport : public cSimpleModule
     //grant to using the desired scheduling criteria
     typedef std::map<uint64_t, std::set<std::pair<inet::L3Address,int>>> PendingMsgsToGrant;
     PendingMsgsToGrant pendingMsgsToGrant;
+
+    typedef std::map<uint64_t, int> PendingMsgsToSend;
+    PendingMsgsToSend pendingMsgsToSend;
 
     typedef std::map<uint64_t, std::set<inet::L3Address>> FinishedMsgsMap;
     FinishedMsgsMap finishedMsgs;

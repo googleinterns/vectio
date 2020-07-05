@@ -29,6 +29,7 @@ enum PktType
     UNSCHED_DATA = 3;
     ACK = 4;
     NACK = 5;
+    NONE = 6;
 };
 
 struct UnschedFields

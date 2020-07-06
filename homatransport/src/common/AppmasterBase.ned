@@ -24,8 +24,9 @@ import homatransport.application.ITrafficGeneratorApp;
 import homatransport.transport.ITransportScheme;
 
 //
-// A simplified version of StandardHost module from inet package. Many
-// unnecessary parts are trimmed off and TransportScheme has been added.
+// This module contains the app submodules, which include traffic generator
+// which generates messages based on the input workload distribution
+// and the appmaster module sends these messages to the nic module via PCIE
 //
 
 module AppmasterBase

@@ -24,8 +24,11 @@ import homatransport.application.ITrafficGeneratorApp;
 import homatransport.transport.ITransportScheme;
 
 //
-// A simplified version of StandardHost module from inet package. Many
-// unnecessary parts are trimmed off and TransportScheme has been added.
+// The nic module contains the offloaded transport functionalities. It is 
+// directly connected to PCIE, which transfers the messages to the nic module 
+// from the appmaster module. The transport inside this module is assumed to be
+// connected to an INET udp socket, which helps transfer the messages to 
+// dsired destination nic module in the topology
 //
 
 module NicBase extends NodeBase

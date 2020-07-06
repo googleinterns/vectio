@@ -423,24 +423,6 @@ WorkloadSynthesizer::processStart()
 {
     // set srcAddress. The assumption here is that each host has only one
     // non-loopback interface and the IP of that interface is srcAddress.
-    // inet::InterfaceTable* ifaceTable =
-    //         check_and_cast<inet::InterfaceTable*>(
-    //         getModuleByPath(par("interfaceTableModule").stringValue()));
-    // inet::InterfaceEntry* srcIface = NULL;
-    // inet::IPv4InterfaceData* srcIPv4Data = NULL;
-    // for (int i=0; i < ifaceTable->getNumInterfaces(); i++) {
-    //     if ((srcIface = ifaceTable->getInterface(i)) &&
-    //             !srcIface->isLoopback() &&
-    //             (srcIPv4Data = srcIface->ipv4Data())) {
-    //         break;
-    //     }
-    // }
-    // if (!srcIface) {
-    //     throw cRuntimeError("Can't find a valid interface on the host");
-    // } else if (!srcIPv4Data) {
-    //     throw cRuntimeError("Can't find an interface with IPv4 address");
-    // }
-    // srcAddress = inet::L3Address(srcIPv4Data->getIPAddress());
 
     // call parseXml to complete intialization based on the config.xml file
     parseAndProcessXMLConfig();

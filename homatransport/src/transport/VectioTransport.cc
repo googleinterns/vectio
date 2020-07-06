@@ -145,7 +145,7 @@ VectioTransport::handleMessage(cMessage *msg)
 void
 VectioTransport::processMsgFromApp(AppMessage* sendMsg)
 {
-    //Receive message from the app, store the outbound message state and 
+    // Receive message from the app, store the outbound message state and 
     // send out a request packet
     uint32_t msgByteLen = sendMsg->getByteLength();
     simtime_t msgCreationTime = sendMsg->getMsgCreationTime();
@@ -164,7 +164,7 @@ VectioTransport::processMsgFromApp(AppMessage* sendMsg)
         logFile.flush();
     }
 
-    //Create an outbound message, and add it to the list of outbound messages
+    // Create an outbound message, and add it to the list of outbound messages
     OutboundMsg* outboundSxMsg = new OutboundMsg();
     outboundSxMsg->msgIdAtSender = msgId;
     outboundSxMsg->numBytesToSend = bytesToSend;
@@ -178,7 +178,7 @@ VectioTransport::processMsgFromApp(AppMessage* sendMsg)
     this->incompleteSxMsgsMap.insert(
         std::pair<uint64_t,OutboundMsg*>(msgId,outboundSxMsg));
 
-    //Create and forward a request packet for this outbound message
+    // Create and forward a request packet for this outbound message
     uint32_t pktDataBytes = 1;
     lastByte = firstByte + pktDataBytes - 1;
     UnschedFields unschedFields;
@@ -209,7 +209,7 @@ VectioTransport::processMsgFromApp(AppMessage* sendMsg)
 void
 VectioTransport::processRcvdPkt(HomaPkt* rxPkt)
 {
-    //Parse the received packet -- whetehr it's REQUEST, GRANT or DATA pkt
+    // Parse the received packet -- whetehr it's REQUEST, GRANT or DATA pkt
     switch (rxPkt->getPktType()) {
         case PktType::REQUEST:
             processReqPkt(rxPkt);
@@ -232,9 +232,9 @@ void
 VectioTransport::processReqPkt(HomaPkt* rxPkt)
 {
     if(logEvents){
-        logFile << simTime() << " Received request pkt for msg: " << 
-        rxPkt->getMsgId() << " at the receiver: " << 
-        rxPkt->getDestAddr() << std::endl;
+        logFile << simTime() << " Received request pkt for msg: " 
+        << rxPkt->getMsgId() << " at the receiver: " 
+        << rxPkt->getDestAddr() << std::endl;
         logFile.flush();
     }
 
@@ -242,7 +242,7 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
     // Add the message to the map of flows to be received
     // Send grant packet to the sender for receiving the corresponding flow
 
-    //make sure the message doesn't already exist in the map
+    // make sure the message doesn't already exist in the map
     uint64_t msgId = rxPkt->getMsgId();
     inet::L3Address srcAddr = rxPkt->getSrcAddr();
     InboundMsg* inboundRxMsg = NULL;
@@ -258,17 +258,17 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
     }
     assert(!inboundRxMsg);
 
-    //add the message to the map
+    // add the message to the map
     if(!inboundRxMsg){
         inboundRxMsg = new InboundMsg(rxPkt); 
-        //TODO make sure the correct information is transferred here
+        // TODO make sure the correct information is transferred here
         rxMsgList.push_front(inboundRxMsg);
     }
     else{
         assert(false);
     }
     int bytesToSend = inboundRxMsg->msgByteLen;
-    //create and send per-packet grants for the message
+    // create and send per-packet grants for the message
     do{
         uint32_t pktDataBytes = std::min(bytesToSend, this->grantSizeBytes);
         HomaPkt* grntPkt = new HomaPkt();
@@ -288,16 +288,16 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
         socket.sendTo(grntPkt, grntPkt->getDestAddr(), destPort);
     }while(bytesToSend > 0);
 
-    //TODO how to set the bytes allowed by a grant packet
+    // TODO how to set the bytes allowed by a grant packet
 }
 
 void
 VectioTransport::processGrantPkt(HomaPkt* rxPkt)
 {
     if(logEvents){
-        logFile << simTime() << " Received grant pkt for msg: " << 
-        rxPkt->getMsgId() << " at the sender: " << rxPkt->getDestAddr() << 
-        " size: " << rxPkt->getGrantFields().grantBytes << std::endl;
+        logFile << simTime() << " Received grant pkt for msg: " 
+        << rxPkt->getMsgId() << " at the sender: " << rxPkt->getDestAddr() 
+        << " size: " << rxPkt->getGrantFields().grantBytes << std::endl;
         logFile.flush();
     }
     // Grant pkt for a message received at the sender
@@ -305,11 +305,11 @@ VectioTransport::processGrantPkt(HomaPkt* rxPkt)
     // Remove the message from the map once done sending all the packets
     uint64_t msgId = rxPkt->getMsgId();
 
-    //make sure the msg exists in the map
+    // make sure the msg exists in the map
     assert(incompleteSxMsgsMap.find(msgId) != incompleteSxMsgsMap.end());
     OutboundMsg* outboundSxMsg = incompleteSxMsgsMap[msgId];
 
-    //send all the data packets for this message
+    // send all the data packets for this message
     uint32_t msgByteLen = outboundSxMsg->msgByteLen;
     simtime_t msgCreationTime = outboundSxMsg->msgCreationTime;
     inet::L3Address destAddr = outboundSxMsg->destAddr;
@@ -343,7 +343,7 @@ VectioTransport::processGrantPkt(HomaPkt* rxPkt)
     // Send the packet out
     socket.sendTo(sxPkt, sxPkt->getDestAddr(), destPort);
 
-    //remove the message from the map if the message done sending all the bytes
+    // remove the message from the map if the message done sending all the bytes
     if(lastByte == outboundSxMsg->msgByteLen){
         auto it = incompleteSxMsgsMap.find(msgId);
         assert(it != incompleteSxMsgsMap.end());
@@ -356,9 +356,9 @@ void
 VectioTransport::processDataPkt(HomaPkt* rxPkt)
 {
     if(logEvents){
-        logFile << simTime() << " Received data pkt for msg: " << 
-        rxPkt->getMsgId() << " at the receiver: " << rxPkt->getDestAddr() << 
-        " size: " << rxPkt->getDataBytes() << std::endl;
+        logFile << simTime() << " Received data pkt for msg: " 
+        << rxPkt->getMsgId() << " at the receiver: " << rxPkt->getDestAddr() 
+        << " size: " << rxPkt->getDataBytes() << std::endl;
         logFile.flush();
     }
     // Find the InboundMsg corresponding to this rxPkt in the
@@ -379,7 +379,7 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
 
     if (!inboundRxMsg) {
        assert(false);
-       //This should never happen cause the map had already been updated when 
+       // This should never happen cause the map had already been updated when 
        // received the grant, and would be removed only after 
        // receiving all the packets
     }

@@ -103,6 +103,8 @@ class VectioTransport : public cSimpleModule
     };
 
   protected:
+    //src interface address
+    inet::L3Address srcAddress;
 
     // UDP socket through which this transport send and receive packets.
     inet::UDPSocket socket;
@@ -121,6 +123,7 @@ class VectioTransport : public cSimpleModule
     uint64_t msgId; // unique monotonically increasing id for
                     // each messages to send
     uint32_t maxDataBytesInPkt;
+    int grantSizeBytes = 1000;
 
     // State and variables kept for managing inbound messages
     // Defines a map to keep a all partially received inbound messages. The key

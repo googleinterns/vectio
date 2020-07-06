@@ -16,10 +16,10 @@
 package homatransport.dcntopo;
 
 import inet.node.inet.Router;
-import inet.node.inet.StandardHost;
 import ned.DatarateChannel;
 import inet.networklayer.configurator.ipv4.IPv4NetworkConfigurator;
-import homatransport.common.HostBase;
+import homatransport.common.NicBase;
+import homatransport.common.AppmasterBase;
 import homatransport.common.GlobalSignalListener;
 
 network DcnTopo
@@ -50,6 +50,9 @@ network DcnTopo
         // on the output ports of the routers
         double switchFixDelay @unit(us);
 
+        //pcie latency
+        double pcieDelay @unit(us);
+
         // models NIC send think time in host nics.
         double hostNicSxThinkTime @unit(us);
 
@@ -78,11 +81,11 @@ network DcnTopo
         **.eth[*].numInputHooks = 1;
         **.eth[*].inputHook[*].typename = "Lagger";
         **.eth[*].inputHook[*].hookType = "InputHook";
-        host[*].eth[*].inputHook[*].delayPar = convertUnit(hostSwTurnAroundTime, "s");
+        nic[*].eth[*].inputHook[*].delayPar = convertUnit(hostSwTurnAroundTime, "s");
         **.eth[*].numOutputHooks = 1;
         **.eth[*].outputHook[*].typename = "Lagger";
         **.eth[*].outputHook[*].hookType = "OutputHook";
-        host[*].eth[*].outputHook[*].delayPar = convertUnit(hostSwTurnAroundTime, "s");
+        nic[*].eth[*].outputHook[*].delayPar = convertUnit(hostSwTurnAroundTime, "s");
 
     types:
         channel FabricChannel extends DatarateChannel
@@ -93,6 +96,11 @@ network DcnTopo
         channel EdgeChannel extends DatarateChannel
         {
             datarate = nicLinkSpeed;
+        }
+
+        channel PcieEdgeChannel extends DatarateChannel
+        {
+            datarate = nicLinkSpeed * 100000;
         }
 
     submodules:
@@ -107,7 +115,21 @@ network DcnTopo
             **.promiscuous = true;
         }
 
-        host[numHosts]: HostBase {
+        nic[numHosts]: NicBase {
+            @display("i=device/server2");
+            hostConfig = xmldoc("config.xml", "/topologyConfig/hostConfig[@id=$MODULE_INDEX]");
+            nicLinkSpeed = nicLinkSpeed;
+            fabricLinkSpeed = fabricLinkSpeed;
+            edgeLinkDelay = edgeLinkDelay;
+            fabricLinkDelay = fabricLinkDelay;
+            hostSwTurnAroundTime = hostSwTurnAroundTime;
+            hostNicSxThinkTime = hostNicSxThinkTime;
+            switchFixDelay = switchFixDelay;
+            trafficGeneratorApp[*].isFabricCutThrough = isFabricCutThrough;
+            trafficGeneratorApp[*].isSingleSpeedFabric = (nicLinkSpeed == fabricLinkSpeed);
+        }
+
+        app[numHosts]: AppmasterBase {
             @display("i=device/server2");
             hostConfig = xmldoc("config.xml", "/topologyConfig/hostConfig[@id=$MODULE_INDEX]");
             nicLinkSpeed = nicLinkSpeed;
@@ -129,8 +151,10 @@ network DcnTopo
 
     connections allowunconnected:
         for i=0..numTors-1, for j=0..numServersPerTor-1 {
-            tor[i].ethg$o++ --> EdgeChannel{delay=(edgeLinkDelay+switchFixDelay);} --> host[i * numServersPerTor + j].ethg$i++;
-            tor[i].ethg$i++ <-- EdgeChannel{delay=(edgeLinkDelay+hostNicSxThinkTime);} <-- host[i * numServersPerTor + j].ethg$o++;
+            tor[i].ethg$o++ --> EdgeChannel{delay=(edgeLinkDelay+switchFixDelay);} --> nic[i * numServersPerTor + j].ethg$i++;
+            tor[i].ethg$i++ <-- EdgeChannel{delay=(edgeLinkDelay+hostNicSxThinkTime);} <-- nic[i * numServersPerTor + j].ethg$o++;
+            nic[i * numServersPerTor + j].pcieOut --> PcieEdgeChannel{delay=(pcieDelay);} --> app[i * numServersPerTor + j].pcieIn;
+            nic[i * numServersPerTor + j].pcieIn <-- PcieEdgeChannel{delay=(pcieDelay);} <-- app[i * numServersPerTor + j].pcieOut;
         }
 
         for i=0..numAggSwitches-1, for j=0..numTors-1 {

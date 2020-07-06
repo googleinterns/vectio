@@ -530,10 +530,11 @@ WorkloadSynthesizer::processRcvdMsg(cPacket* msg)
     inet::L3Address srcAddr = rcvdMsg->getSrcAddr();
     inet::L3Address destAddr = rcvdMsg->getDestAddr();
 
-    outputFile  <<  addrHostidMap[srcAddr.str()] << " " << parentHostIdx << " " << srcAddr << " " << destAddr << 
-    " " << msgByteLen << " " << rcvdMsg->getMsgCreationTime().dbl() << 
-    " " << simTime() << " " 
-    << completionTime.dbl() << " " << idealMsgEndToEndDelay(rcvdMsg) << std::endl;
+    outputFile  <<  addrHostidMap[srcAddr.str()] << " " 
+    << parentHostIdx << " " << srcAddr << " " << destAddr 
+    << " " << msgByteLen << " " << rcvdMsg->getMsgCreationTime().dbl() 
+    << " " << simTime() << " " << completionTime.dbl() << " " 
+    << idealMsgEndToEndDelay(rcvdMsg) << std::endl;
     outputFile.flush();
 
     delete rcvdMsg;

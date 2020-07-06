@@ -494,10 +494,17 @@ void
 VectioTransport::processDataPkt(HomaPkt* rxPkt)
 {
     if(logEvents){
-        logFile << simTime() << " Received data pkt for msg: " 
-        << rxPkt->getMsgId() << " at the receiver: " << rxPkt->getDestAddr() 
-        << " size: " << rxPkt->getDataBytes() << std::endl;
+        logFile << simTime() << " Received data pkt for msg: " << 
+        rxPkt->getMsgId() << " at the receiver: " << rxPkt->getDestAddr() << 
+        " size: " << rxPkt->getDataBytes() << " sent at: " << rxPkt->getTimestamp() << std::endl;
         logFile.flush();
+    }
+
+    //update the rtt
+    if(rxPkt->getSrcAddr().toIPv4().getDByte(2) != rxPkt->getDestAddr().toIPv4().getDByte(2)){
+        currentRtt = ((simTime() - rxPkt->getTimestamp()).dbl() * 2.0);
+        assert(currentRtt > 0);
+        allowedInFlightGrantedBytes = ((int)(currentRtt * nicBandwidth / 8.0));
     }
     //////////// TESTING PKT DROPS /////////////////
     // int dropPkt = rand() % 20;
@@ -654,6 +661,7 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
         ackPkt->setMsgId(msgId);
         ackPkt->setSrcAddr(inboundRxMsg->destAddr);
         ackPkt->setDestAddr(inboundRxMsg->srcAddr);
+        ackPkt->setPriority(0);
         socket.sendTo(ackPkt,ackPkt->getDestAddr(),destPort);
 
         delete inboundRxMsg;
@@ -685,6 +693,7 @@ VectioTransport::processNackPkt(HomaPkt* rxPkt)
         //resend the data packets corresponding to the first and last bytes
         HomaPkt* resendDataPkt = new HomaPkt();
         resendDataPkt->setPktType(PktType::SCHED_DATA);
+        resendDataPkt->setTimestamp(simTime());
         int firstByte = rxPkt->getSchedDataFields().firstByte;
         int lastByte = rxPkt->getSchedDataFields().lastByte;
         if(lastByte - firstByte + 1 < grantSizeBytes){
@@ -732,6 +741,7 @@ VectioTransport::processPendingMsgsToSend(){
     if(pendingMsgsToSend.empty() != true){
         inboundGrantQueueBusy = true;
         HomaPkt* dataPkt = extractDataPkt("SRPT");
+        dataPkt->setTimestamp(simTime());
         int pktByteLen = 0;
         if(dataPkt->getPktType() == PktType::SCHED_DATA || 
         dataPkt->getPktType() == PktType::UNSCHED_DATA){
@@ -984,7 +994,7 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
         grntPkt->setSrcAddr(srcAddress);
         grntPkt->setDestAddr(chosenSrcAddr);
         grntPkt->setMsgId(chosenMsgId);
-        // grntPkt->setPriority(bytesToSend); //TODO think about the priority for grntPkt
+        grntPkt->setPriority(0);
         grntPkt->setPktType(PktType::GRANT);
         grntPkt->setGrantFields(grantFields);
         grntPkt->setByteLength(grntPkt->headerSize());
@@ -1106,6 +1116,7 @@ VectioTransport::InboundMsg::checkAndSendNack()
                 nackPkt->setSrcAddr(destAddr);
                 nackPkt->setDestAddr(srcAddr);
                 nackPkt->setMsgId(msgIdAtSender);
+                nackPkt->setPriority(0);
                 SchedDataFields schedFields;
                 uint32_t firstByte = missedPktSeqNo * transport->grantSizeBytes;
                 uint32_t lastByte = firstByte + transport->grantSizeBytes - 1;
@@ -1129,6 +1140,7 @@ VectioTransport::InboundMsg::checkAndSendNack()
                 nackPkt->setSrcAddr(destAddr);
                 nackPkt->setDestAddr(srcAddr);
                 nackPkt->setMsgId(msgIdAtSender);
+                nackPkt->setPriority(0);
                 SchedDataFields schedFields;
                 uint32_t firstByte = newFirstByte;
                 uint32_t lastByte = firstByte + transport->grantSizeBytes - 1;

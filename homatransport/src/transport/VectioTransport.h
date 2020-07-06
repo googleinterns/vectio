@@ -119,6 +119,7 @@ class VectioTransport : public cSimpleModule
         int largestByteRcvd = -1;
         VectioTransport* transport;
         int bytesGranted = -1;
+        int bytesInFlight = -1;
     };
 
     class OutboundMsg
@@ -204,6 +205,11 @@ class VectioTransport : public cSimpleModule
 
     typedef std::map<uint64_t, std::set<inet::L3Address>> FinishedMsgsMap;
     FinishedMsgsMap finishedMsgs;
+
+    double currentRtt = 2.0 * 5e-6;
+    int allowedInFlightGrantedBytes = ((int)(2.0 * 5e-6 * 10e9 / 8.0));
+
+    int degOverComm = 3; 
 
     public:
       int grantSizeBytes = 1000;

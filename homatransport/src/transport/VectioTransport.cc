@@ -1009,6 +1009,7 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
 
         do{
             int minBytesToGrant = INT_MAX;
+            simtime_t minCreationTime;
             // uint64_t chosenMsgId;
             // inet::L3Address chosenSrcAddr;
             // assert(pendingMsgsToGrant.size() > 0);
@@ -1024,6 +1025,23 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
                     inet::L3Address messageSrcAddr = itr2->first;
                     int bytesToGrant = itr2->second;
                     assert(bytesToGrant > 0);
+                    // find the creation time of this message as well
+
+                    InboundMsg* inboundRxMsg = NULL;
+                    std::list<InboundMsg*> &rxMsgList = 
+                    incompleteRxMsgsMap[messageID];
+                    for (auto inbndIter = rxMsgList.begin(); 
+                        inbndIter != rxMsgList.end(); ++inbndIter) {
+                        InboundMsg* incompleteRxMsg = *inbndIter;
+                        ASSERT(incompleteRxMsg->msgIdAtSender == messageID);
+                        if (incompleteRxMsg->srcAddr == messageSrcAddr) {
+                            inboundRxMsg = incompleteRxMsg;
+                            break;
+                        }
+                    }
+                    assert(inboundRxMsg != NULL);
+
+
                     if(bytesToGrant < minBytesToGrant && 
                     sendersToExclude.find(messageSrcAddr) == 
                     sendersToExclude.end()){
@@ -1033,6 +1051,20 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
                         chosenItr2 = itr2;
                         minBytesToGrant = bytesToGrant;
                         someMsgChosen = true;
+                        minCreationTime = inboundRxMsg->msgCreationTime;
+                    }
+                    else if(bytesToGrant == minBytesToGrant && 
+                    sendersToExclude.find(messageSrcAddr) == 
+                    sendersToExclude.end()){
+                        if(inboundRxMsg->msgCreationTime < minCreationTime){
+                            chosenMsgId = messageID;
+                            chosenSrcAddr = messageSrcAddr;
+                            chosenItr = itr;
+                            chosenItr2 = itr2;
+                            minBytesToGrant = bytesToGrant;
+                            someMsgChosen = true;
+                            minCreationTime = inboundRxMsg->msgCreationTime;
+                        }
                     }
                 }
             }

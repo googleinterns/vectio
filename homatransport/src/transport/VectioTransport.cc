@@ -273,6 +273,13 @@ VectioTransport::processRcvdPkt(HomaPkt* rxPkt)
                 rxPkt->getMsgId()) != pendingMsgsToSend.end()){
                 pendingMsgsToSend[rxPkt->getMsgId()] += 
                 rxPkt->getGrantFields().grantBytes;
+                //find the outbound message, update the schedprio
+                assert(incompleteSxMsgsMap.find(rxPkt->getMsgId()) !=
+                incompleteSxMsgsMap.end());
+                incompleteSxMsgsMap[rxPkt->getMsgId()]->schedPrio = 
+                rxPkt->getGrantFields().schedPrio;
+                assert(rxPkt->getGrantFields().schedPrio >= 2);
+                assert(rxPkt->getGrantFields().schedPrio <= 7);
             }
             if(!inboundGrantQueueBusy){
                 processPendingMsgsToSend();
@@ -523,6 +530,21 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
         bytesToSend -= alreadyGrantedBytes;
         inboundRxMsg->bytesGranted = alreadyGrantedBytes;
 
+        // update the inflight granted bytes
+        currentRcvInFlightGrantBytes += alreadyGrantedBytes;
+        
+        // update the inflight granted bytes for the corresponding sender
+        if(senderInFlightGrantBytes.find(rxPkt->getSrcAddr()) != 
+        senderInFlightGrantBytes.end()){
+            auto itr = senderInFlightGrantBytes.find(rxPkt->getSrcAddr());
+            itr->second += alreadyGrantedBytes;
+        }
+        else{
+            senderInFlightGrantBytes.insert(std::pair<inet::L3Address,int>(
+                rxPkt->getSrcAddr(),alreadyGrantedBytes
+            ));
+        }
+
         //add to pending messages to be granted
         if (bytesToSend > 0) {
             auto it = pendingMsgsToGrant.find(inboundRxMsg->msgIdAtSender);
@@ -663,6 +685,7 @@ VectioTransport::processNackPkt(HomaPkt* rxPkt)
         schedFields.firstByte = firstByte;
         schedFields.lastByte = lastByte;
         resendDataPkt->setSchedDataFields(schedFields);
+        resendDataPkt->setPriority(2);
         socket.sendTo(resendDataPkt, resendDataPkt->getDestAddr(),destPort);
         if (logEvents) {
         logFile << simTime() << " Resent pkt: " << firstByte 
@@ -754,18 +777,49 @@ VectioTransport::extractDataPkt(const char* schedulingPolicy){
     if (schedulingPolicy == "SRPT") {
         // find the message with the smallest remaining bytes to send first
         int minBytesToSend = INT_MAX;
+        int minMsgBytesRemaining = INT_MAX;
         uint64_t chosenMsgId;
         auto chosenItr = pendingMsgsToSend.begin();
         bool someMsgToSend = false;
+        simtime_t minCreationTime;
         for (auto itr = pendingMsgsToSend.begin(); itr != pendingMsgsToSend.end(); 
         itr++) {
             uint64_t messageID = itr->first; 
             int bytesToSend = itr->second;
-            if(bytesToSend > 0 && bytesToSend < minBytesToSend){
-                chosenMsgId = messageID;
-                chosenItr = itr;
-                minBytesToSend = bytesToSend;
-                someMsgToSend = true;
+            if(bytesToSend == 0){
+                continue;
+            }
+            if(incompleteSxMsgsMap.find(messageID) == incompleteSxMsgsMap.end()){
+                pendingMsgsToSend.erase(itr);
+                continue;
+            }
+            else{
+                uint32_t msgBytesRemaining = 
+                incompleteSxMsgsMap[messageID]->msgByteLen 
+                - incompleteSxMsgsMap[messageID]->nextByteToSend;
+                assert(bytesToSend > 0);
+                assert(msgBytesRemaining > 0);
+                assert(bytesToSend <= msgBytesRemaining);
+
+                if(msgBytesRemaining < minMsgBytesRemaining){
+                    chosenMsgId = messageID;
+                    chosenItr = itr;
+                    minBytesToSend = bytesToSend;
+                    someMsgToSend = true;
+                    minCreationTime = 
+                    incompleteSxMsgsMap[messageID]->msgCreationTime;
+                }
+                else if(msgBytesRemaining == minMsgBytesRemaining){
+                    if(incompleteSxMsgsMap[messageID]->msgCreationTime.dbl() < 
+                    minCreationTime.dbl()){
+                        chosenMsgId = messageID;
+                        chosenItr = itr;
+                        minBytesToSend = bytesToSend;
+                        someMsgToSend = true;
+                        minCreationTime = 
+                        incompleteSxMsgsMap[messageID]->msgCreationTime;
+                    }
+                }
             }
         }
 
@@ -812,6 +866,7 @@ VectioTransport::extractDataPkt(const char* schedulingPolicy){
                 unschedField.totalUnschedBytes = std::min((int)msgByteLen,freeGrantSize);
                 sxPkt->setPktType(PktType::UNSCHED_DATA);
                 sxPkt->setUnschedFields(unschedField);
+                sxPkt->setPriority(1);
             }
             else {
                 // send sched packet
@@ -820,6 +875,9 @@ VectioTransport::extractDataPkt(const char* schedulingPolicy){
                 schedField.lastByte = lastByte;
                 sxPkt->setPktType(PktType::SCHED_DATA);
                 sxPkt->setSchedDataFields(schedField);
+                sxPkt->setPriority(outboundSxMsg->schedPrio);
+                assert(outboundSxMsg->schedPrio >= 2);
+                assert(outboundSxMsg->schedPrio <= 7);
             }
             sxPkt->setByteLength(pktByteLen + sxPkt->headerSize());
             firstByte = lastByte + 1;
@@ -885,6 +943,11 @@ VectioTransport::processPendingMsgsToGrant(){
     if(pendingMsgsToGrant.empty() != true){
         outboundGrantQueueBusy = true;
         HomaPkt* grntPkt = extractGrantPkt("SRPT");
+        if(grntPkt->getPktType() == PktType::NONE){
+            // nothing to grant
+            delete grntPkt;
+            return;
+        }
         assert(grntPkt->getPktType() == PktType::GRANT);
         socket.sendTo(grntPkt, grntPkt->getDestAddr(), destPort);
         // update the bytes granted for the inbound msg
@@ -924,38 +987,135 @@ VectioTransport::processPendingMsgsToGrant(){
 HomaPkt*
 VectioTransport::extractGrantPkt(const char* schedulingPolicy){
     if (schedulingPolicy == "SRPT") {
+        if(currentRcvInFlightGrantBytes > (int) (degOverComm * 
+        allowedInFlightGrantedBytes)){
+            //receiver already exceeded the allowed inflight byte limit
+            HomaPkt* nonePkt = new HomaPkt();
+            nonePkt->setPktType(PktType::NONE);
+            return nonePkt;
+        }
+
         // find the msg with smallest remaining bytes to grant first
-        int minBytesToGrant = INT_MAX;
+        
+        std::set<inet::L3Address> sendersToExclude;
+        sendersToExclude.clear();
+
         uint64_t chosenMsgId;
         inet::L3Address chosenSrcAddr;
         assert(pendingMsgsToGrant.size() > 0);
         auto chosenItr = pendingMsgsToGrant.begin();
         auto chosenItr2 = chosenItr->second.begin();
-        for(auto itr = pendingMsgsToGrant.begin(); itr != pendingMsgsToGrant.end();
-        itr++){
-            uint64_t messageID = itr->first;
-            for(auto itr2 = itr->second.begin(); itr2 != itr->second.end();
-            itr2++){
-                inet::L3Address messageSrcAddr = itr2->first;
-                int bytesToGrant = itr2->second;
-                assert(bytesToGrant > 0);
-                if(bytesToGrant < minBytesToGrant){
-                    chosenMsgId = messageID;
-                    chosenSrcAddr = messageSrcAddr;
-                    chosenItr = itr;
-                    chosenItr2 = itr2;
-                    minBytesToGrant = bytesToGrant;
+        uint16_t assignedPrio = 2;
+
+        do{
+            int minBytesToGrant = INT_MAX;
+            // uint64_t chosenMsgId;
+            // inet::L3Address chosenSrcAddr;
+            // assert(pendingMsgsToGrant.size() > 0);
+            chosenItr = pendingMsgsToGrant.begin();
+            chosenItr2 = chosenItr->second.begin();
+            bool someMsgChosen = false;
+            // find the top non excluded msg
+            for(auto itr = pendingMsgsToGrant.begin(); itr != 
+            pendingMsgsToGrant.end();itr++){
+                uint64_t messageID = itr->first;
+                for(auto itr2 = itr->second.begin(); itr2 != itr->second.end();
+                itr2++){
+                    inet::L3Address messageSrcAddr = itr2->first;
+                    int bytesToGrant = itr2->second;
+                    assert(bytesToGrant > 0);
+                    if(bytesToGrant < minBytesToGrant && 
+                    sendersToExclude.find(messageSrcAddr) == 
+                    sendersToExclude.end()){
+                        chosenMsgId = messageID;
+                        chosenSrcAddr = messageSrcAddr;
+                        chosenItr = itr;
+                        chosenItr2 = itr2;
+                        minBytesToGrant = bytesToGrant;
+                        someMsgChosen = true;
+                    }
                 }
             }
-        }
+
+            if(someMsgChosen == false){
+                // no msg could be chosen because of 
+                // the in flight byte constraints
+                HomaPkt* nonePkt = new HomaPkt();
+                nonePkt->setPktType(PktType::NONE);
+                return nonePkt;
+            }
+            assert(senderInFlightGrantBytes.find(chosenSrcAddr) !=
+            senderInFlightGrantBytes.end());
+            auto senderBytesItr = senderInFlightGrantBytes.find(chosenSrcAddr);
+            if(senderBytesItr->second > allowedInFlightGrantedBytes){
+                sendersToExclude.insert(chosenSrcAddr);
+                assignedPrio++;
+            }
+            else{
+                auto checkItr = senderActiveGrantedMsg.find(chosenSrcAddr);
+                if(checkItr == senderActiveGrantedMsg.end()){
+                    senderActiveGrantedMsg.insert(
+                        std::pair<inet::L3Address,std::pair<uint64_t,int>>(
+                            chosenSrcAddr,std::pair<uint64_t,int>(
+                                chosenMsgId,minBytesToGrant
+                            )
+                        )
+                    );
+                    break;
+                }
+                else{
+                    if(chosenMsgId == (checkItr->second).first){
+                        assert(minBytesToGrant == (checkItr->second).second);
+                        break;
+                    }
+                    else if(minBytesToGrant < (checkItr->second).second){
+                        // update the active sender msg
+                        checkItr->second = std::pair<uint64_t,int>(
+                            chosenMsgId,minBytesToGrant);
+                        break;
+                    }
+                    else{
+                        // try choosing another sender
+                        sendersToExclude.insert(chosenSrcAddr);
+                        assignedPrio++;
+                    }
+                }
+            }
+        }while(1);
+
+        // if allowed, proceed with the grant pkt for this pkt
+        // otherwise, find the next best msg, check if it is allowed
+
+        // checking whether a msg is allowed
+        // forst of all, before everything check the receiver total bytes
+        // for the chosen message, check the sender bytes,
+        // if they both are satisfied, check the active sender flow
+        // if the same flow very well,
+        // otherwise check whether the current flow is smaller than the current active flow
+        // if yes, choose this flow, update the active flow, 
+
+        // on a side note, what do we need to keep in state for the activeflow
+
+
+        // now after choosing the msg, and sending the grant update the state
+        
+
+
         // create grant packet using the chosen message
         assert(chosenItr == pendingMsgsToGrant.find(chosenMsgId));
         
-        uint32_t pktDataBytes = std::min(chosenItr2->second, this->grantSizeBytes);
+        uint32_t pktDataBytes = std::min(chosenItr2->second, 
+        this->grantSizeBytes);
         HomaPkt* grntPkt = new HomaPkt();
         GrantFields grantFields;
         grantFields.grantBytes = pktDataBytes;
         grantFields.isFree = false;
+        if(assignedPrio > 7){
+            //assuming 8 priority levels
+            //TODO take input the desired number of priority levels
+            assignedPrio = 7;
+        }
+        grantFields.schedPrio = assignedPrio;
         grntPkt->setSrcAddr(srcAddress);
         grntPkt->setDestAddr(chosenSrcAddr);
         grntPkt->setMsgId(chosenMsgId);
@@ -964,7 +1124,25 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
         grntPkt->setGrantFields(grantFields);
         grntPkt->setByteLength(grntPkt->headerSize());
         auto remainingBytesToGrant = chosenItr2->second - pktDataBytes;
+
+        currentRcvInFlightGrantBytes += pktDataBytes;
+
+        assert(senderInFlightGrantBytes.find(chosenSrcAddr) != 
+        senderInFlightGrantBytes.end());
+        auto senderItr = senderInFlightGrantBytes.find(chosenSrcAddr);
+        senderItr->second += pktDataBytes;
+
         chosenItr->second.erase(chosenItr2);
+
+        assert(senderActiveGrantedMsg.find(chosenSrcAddr) !=
+        senderActiveGrantedMsg.end());
+        auto senderActiveMsgItr = senderActiveGrantedMsg.find(chosenSrcAddr);
+        senderActiveMsgItr->second.second -= pktDataBytes;
+        assert(senderActiveMsgItr->second.second >= 0);
+        if(senderActiveMsgItr->second.second == 0){
+            senderActiveGrantedMsg.erase(senderActiveMsgItr);
+        }
+
         if (remainingBytesToGrant > 0) {
             chosenItr->second.insert(std::pair<inet::L3Address,int>(
                 chosenSrcAddr,remainingBytesToGrant));
@@ -1236,6 +1414,16 @@ VectioTransport::InboundMsg::appendPktData(HomaPkt* rxPkt)
 
     if (!isPktDuplicate) {
         numBytesToRecv -= dataBytesInPkt;
+
+        // update the in flight bytes
+        transport->currentRcvInFlightGrantBytes -= dataBytesInPkt;
+        assert(transport->currentRcvInFlightGrantBytes >= 0);
+
+        assert(transport->senderInFlightGrantBytes.find(rxPkt->getSrcAddr()) !=
+        transport->senderInFlightGrantBytes.end());
+        auto itr = transport->senderInFlightGrantBytes.find(rxPkt->getSrcAddr());
+        itr->second -= dataBytesInPkt;
+        assert(itr->second >= 0);
     }
     if (numBytesToRecv < 0) {
         throw cRuntimeError("Remaining bytes to "

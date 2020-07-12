@@ -74,7 +74,7 @@ class WorkloadSynthesizer : public cSimpleModule
     int nextDestHostId; // -1 means the destination must be chosen
                         // randomely based on config.xml information.
     std::unordered_map<int, inet::L3Address> hostIdAddrMap;
-    //also need host address to host id map for logging purposes
+    // also need host address to host id map for logging purposes
     std::unordered_map<std::string, int> addrHostidMap;
 
     // statistics

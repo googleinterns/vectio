@@ -54,14 +54,14 @@ Lagger::handleMessage(cMessage *msg)
     } else {
         if (hookType == "InputHook") {
             inputHookPktHandler(msg);
-            if(logPacketEvents){
+            if (logPacketEvents){
                 cModule* parentHost = this->getParentModule();
                 cModule* grandParentHost = parentHost->getParentModule();
                 logFile << simTime() << " At input lagger: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandParentHost->getIndex() << std::endl;
             }
         } else if (hookType == "OutputHook") {
             outputHookPktHandler(msg);
-            if(logPacketEvents){
+            if (logPacketEvents){
                 cModule* parentHost = this->getParentModule();
                 cModule* grandParentHost = parentHost->getParentModule();
                 logFile << simTime() << " At output lagger: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandParentHost->getIndex() << std::endl;

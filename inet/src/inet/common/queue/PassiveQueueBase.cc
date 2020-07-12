@@ -19,6 +19,10 @@
 
 #include "inet/common/queue/PassiveQueueBase.h"
 #include "transport/HomaPkt.h"
+#include <fstream>
+
+extern std::ofstream logFile;
+extern bool logPacketEvents;
 
 namespace inet {
 
@@ -90,8 +94,10 @@ void PassiveQueueBase::handleMessage(cMessage *msg)
                 case PktType::UNSCHED_DATA:
                     emit(unschedDataQueueingTimeSignal, SIMTIME_ZERO);
                     break;
-                // default:
-                //     throw cRuntimeError("HomaPkt arrived at the queue has unknown type.");
+                default:
+                     if (logPacketEvents) {
+                        logFile << "HomaPkt arrived at the queue has unknown type." << std::endl;
+                     }
             }
         }
         setTxPktDuration(pkt->getByteLength());
@@ -149,8 +155,10 @@ void PassiveQueueBase::requestPacket()
                 case PktType::UNSCHED_DATA:
                     emit(unschedDataQueueingTimeSignal, simTime() - msg->getArrivalTime());
                     break;
-                // default:
-                //     throw cRuntimeError("HomaPkt arrived at the queue has unknown type.");
+                default:
+                    if (logPacketEvents) {
+                        logFile << "HomaPkt arrived at the queue has unknown type." << std::endl;
+                     }
             }
         }
         setTxPktDuration(pkt->getByteLength());

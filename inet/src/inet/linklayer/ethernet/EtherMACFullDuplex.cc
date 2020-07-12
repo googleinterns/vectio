@@ -444,8 +444,8 @@ EtherMACFullDuplex::countHomaPktBytes(EtherFrame* curFrame, bool isSent)
                     homaBytesCounter.numUnschedPktRecvOk++;
                 }
                 break;
-            // default:
-            //     throw cRuntimeError("HomaPkt arrived at the queue has unknown type.");
+            default:
+                ;
         }
     }
 }

@@ -82,9 +82,9 @@ class VectioTransport : public cSimpleModule
     {
         START = 1,  // Timer type when the transport is in initialization phase.
         STOP  = 2,   // Timer type when the transport is in cleaning phase.
-        IBGRANTQUEUE = 3, // Timer type when the transport wants to process the 
+        INBOUNDQUEUE = 3, // Timer type when the transport wants to process the 
                        // grant queue
-        OBGRANTQUEUE = 4, // Timer type when the transport wants to process the 
+        OUTBOUNDQUEUE = 4, // Timer type when the transport wants to process the 
                        // grant queue
         RETXTIMER = 5
     };

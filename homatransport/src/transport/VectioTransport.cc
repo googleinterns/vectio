@@ -78,11 +78,11 @@ VectioTransport::initialize()
 
     // Initialize the inbound grant queue timer
     inboundGrantQueueTimer = new cMessage("inboundGrantQueueTimer");
-    inboundGrantQueueTimer->setKind(SelfMsgKind::IBGRANTQUEUE);
+    inboundGrantQueueTimer->setKind(SelfMsgKind::INBOUNDQUEUE);
 
     // Initialize the outbound grant queue timer
     outboundGrantQueueTimer = new cMessage("outboundGrantQueueTimer");
-    outboundGrantQueueTimer->setKind(SelfMsgKind::OBGRANTQUEUE);
+    outboundGrantQueueTimer->setKind(SelfMsgKind::OUTBOUNDQUEUE);
 
     std::string LogFileName = std::string(
                 "results/") + std::string(par("logFile").stringValue());
@@ -148,10 +148,10 @@ VectioTransport::handleMessage(cMessage *msg)
             case SelfMsgKind::STOP:
                 processStop();
                 break;
-            case SelfMsgKind::IBGRANTQUEUE:
+            case SelfMsgKind::INBOUNDQUEUE:
                 processPendingMsgsToSend();
                 break;
-            case SelfMsgKind::OBGRANTQUEUE:
+            case SelfMsgKind::OUTBOUNDQUEUE:
                 processPendingMsgsToGrant();
                 break;
             case SelfMsgKind::RETXTIMER:

@@ -17,6 +17,11 @@
 #include "inet/linklayer/ethernet/Ethernet.h"
 #include "inet/linklayer/ethernet/EtherMACBase.h"
 
+#include <fstream>
+
+extern std::ofstream logFile;
+extern bool logPacketEvents;
+
 
 Define_Module(Lagger);
 
@@ -49,8 +54,18 @@ Lagger::handleMessage(cMessage *msg)
     } else {
         if (hookType == "InputHook") {
             inputHookPktHandler(msg);
+            if (logPacketEvents){
+                cModule* parentHost = this->getParentModule();
+                cModule* grandParentHost = parentHost->getParentModule();
+                logFile << simTime() << " At input lagger: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandParentHost->getIndex() << std::endl;
+            }
         } else if (hookType == "OutputHook") {
             outputHookPktHandler(msg);
+            if (logPacketEvents){
+                cModule* parentHost = this->getParentModule();
+                cModule* grandParentHost = parentHost->getParentModule();
+                logFile << simTime() << " At output lagger: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandParentHost->getIndex() << std::endl;
+            }
         } else {
             throw cRuntimeError("Lagger type '%s' is not recognized.",
                     hookType.c_str());

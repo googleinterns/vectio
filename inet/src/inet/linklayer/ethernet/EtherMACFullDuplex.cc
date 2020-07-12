@@ -445,7 +445,7 @@ EtherMACFullDuplex::countHomaPktBytes(EtherFrame* curFrame, bool isSent)
                 }
                 break;
             default:
-                throw cRuntimeError("HomaPkt arrived at the queue has unknown type.");
+                ;
         }
     }
 }

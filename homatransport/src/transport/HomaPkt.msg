@@ -27,6 +27,9 @@ enum PktType
     GRANT = 1;
     SCHED_DATA = 2;
     UNSCHED_DATA = 3;
+    ACK = 4;
+    NACK = 5;
+    NONE = 6;
 };
 
 struct UnschedFields
@@ -56,6 +59,7 @@ struct GrantFields
     uint16_t grantBytes;
     uint32_t offset;
     uint16_t schedPrio;
+    bool isFree;
 
     // [(uint32_t size_upper_bound, uint16_t req_byte, uint16_t prio)]
     UnsignedVec sizeReqBytesPrio;

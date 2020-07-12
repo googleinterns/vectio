@@ -35,6 +35,12 @@
 #include "inet/networklayer/common/IInterfaceTable.h"
 #include "inet/common/ModuleAccess.h"
 
+#include "transport/HomaPkt.h"
+#include <fstream>
+
+extern std::ofstream logFile;
+extern bool logPacketEvents;
+
 namespace inet {
 
 Define_Module(IPv4);
@@ -111,6 +117,36 @@ void IPv4::updateDisplayString()
 
 void IPv4::handleMessage(cMessage *msg)
 {
+    if(logPacketEvents){
+        cPacket* pkt = dynamic_cast<cPacket*>(msg);
+        pkt = HomaPkt::searchEncapHomaPkt(pkt);
+        cModule* parentHost = this->getParentModule();
+        cModule* grandParentHost = parentHost->getParentModule();
+        if (pkt) {
+            HomaPkt* homaPkt = check_and_cast<HomaPkt*>(pkt);
+            switch (homaPkt->getPktType()) {
+                case PktType::REQUEST:
+                    logFile << simTime() << " req packet at IPv4: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandParentHost->getIndex() << std::endl;
+                    logFile.flush();
+                    break;
+                case PktType::GRANT:
+                    logFile << simTime() << " grant packet at IPv4: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandParentHost->getIndex() << std::endl;
+                    logFile.flush();
+                    break;
+                case PktType::SCHED_DATA:
+                    logFile << simTime() << " sched data packet at IPv4: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandParentHost->getIndex() << std::endl;
+                    logFile.flush();
+                    break;
+                case PktType::UNSCHED_DATA:
+                    
+                    break;
+                // default:
+                //     throw cRuntimeError("HomaPkt arrived at the queue has unknown type.");
+            }
+        }
+    }
+
+
     if (dynamic_cast<RegisterTransportProtocolCommand *>(msg)) {
         RegisterTransportProtocolCommand *command = check_and_cast<RegisterTransportProtocolCommand *>(msg);
         mapping.addProtocolMapping(command->getProtocol(), msg->getArrivalGate()->getIndex());
@@ -178,6 +214,9 @@ void IPv4::handleIncomingDatagram(IPv4Datagram *datagram, const InterfaceEntry *
     }
 
     EV_DETAIL << "Received datagram `" << datagram->getName() << "' with dest=" << datagram->getDestAddress() << "\n";
+    if(logPacketEvents){
+        logFile << "Received datagram `" << datagram->getName() << "' with dest=" << datagram->getDestAddress() << "\n";
+    }
 
     const InterfaceEntry *destIE = NULL;
     L3Address nextHop(IPv4Address::UNSPECIFIED_ADDRESS);

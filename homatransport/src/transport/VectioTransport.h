@@ -113,13 +113,14 @@ class VectioTransport : public cSimpleModule
         inet::L3Address destAddr;
         uint64_t msgIdAtSender;
         simtime_t msgCreationTime;
-        double retxTimeout = 100.0e-6;
+        double retxTimeout = 10000000.0e-6;
         // int grantSizeBytes = 1000; //TODO -- get this value from the parent class automatically
         int largestPktSeqRcvd = -1;
         int largestByteRcvd = -1;
         VectioTransport* transport;
         int bytesGranted = -1;
         int bytesInFlight = -1;
+        simtime_t firstPktSentTime;
     };
 
     class OutboundMsg
@@ -221,7 +222,7 @@ class VectioTransport : public cSimpleModule
     typedef std::map<inet::L3Address,std::pair<uint64_t,int>> SenderActiveGrantedMsg;
     SenderActiveGrantedMsg senderActiveGrantedMsg;
 
-    int degOverComm = 6; 
+    int degOverComm = 2; 
 
     public:
       int grantSizeBytes = 1000;

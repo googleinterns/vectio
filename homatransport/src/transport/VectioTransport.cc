@@ -28,6 +28,7 @@
 Define_Module(VectioTransport);
 
 std::ofstream logFile;
+std::ofstream logFile2;
 bool logPacketEvents = false;
 
 VectioTransport::VectioTransport()
@@ -87,6 +88,12 @@ VectioTransport::initialize()
                 "results/") + std::string(par("logFile").stringValue());
     if (!logFile.is_open()) {
         logFile.open(LogFileName);
+    }
+
+    std::string LogFile2Name = std::string(
+                "results/tor.log");
+    if (!logFile2.is_open()) {
+        logFile2.open(LogFile2Name);
     }
 
     logEvents = par("logEvents");
@@ -477,9 +484,10 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
     //update the rtt
     if (rxPkt->getSrcAddr().toIPv4().getDByte(2) != 
         rxPkt->getDestAddr().toIPv4().getDByte(2)) {
-        currentRtt = ((simTime() - rxPkt->getTimestamp()).dbl() * 2.0);
-        assert(currentRtt > 0);
-        allowedInFlightGrantedBytes = ((int)(currentRtt * nicBandwidth / 8.0));
+        // currentRtt = ((simTime() - rxPkt->getTimestamp()).dbl() * 2.0);
+        // assert(currentRtt > 0);
+        // allowedInFlightGrantedBytes = ((int)(currentRtt * nicBandwidth / 8.0));
+        // logFile << simTime() << " updated rtt: " << currentRtt << " " << allowedInFlightGrantedBytes << " " << currentRcvInFlightGrantBytes << std::endl;
     }
     //////////// TESTING PKT DROPS /////////////////
     // int dropPkt = rand() % 20;
@@ -529,6 +537,8 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
         assert(alreadyGrantedBytes <= bytesToSend);
         bytesToSend -= alreadyGrantedBytes;
         inboundRxMsg->bytesGranted = alreadyGrantedBytes;
+
+        inboundRxMsg->firstPktSentTime = rxPkt->getTimestamp();
 
         // update the inflight granted bytes
         currentRcvInFlightGrantBytes += alreadyGrantedBytes;
@@ -614,7 +624,7 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
                 std::set<inet::L3Address>>(rxPkt->getMsgId(),newSet));
         }
 
-        logFile << " Msg finished" << std::endl;
+        // logFile << " Msg finished" << std::endl;
 
 
         AppMessage* rxMsg = new AppMessage();
@@ -624,6 +634,7 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
         rxMsg->setTransportSchedDelay(SIMTIME_ZERO);
         rxMsg->setByteLength(inboundRxMsg->msgByteLen);
         rxMsg->setMsgBytesOnWire(inboundRxMsg->totalBytesOnWire);
+        rxMsg->setFirstPktSentTime(inboundRxMsg->firstPktSentTime);
         send(rxMsg, "appOut", 0);
 
         // send an ACK back to sender to delete outboundmsg
@@ -647,7 +658,7 @@ VectioTransport::processAckPkt(HomaPkt* rxPkt)
 {
     // find the corresponding outbound msg and remove from the map
     auto it = incompleteSxMsgsMap.find(rxPkt->getMsgId());
-    logFile << " Msg: " << rxPkt->getMsgId() << std::endl;
+    // logFile << " Msg: " << rxPkt->getMsgId() << std::endl;
     assert(it != incompleteSxMsgsMap.end());
     incompleteSxMsgsMap.erase(it);
     if (logEvents) {
@@ -749,7 +760,8 @@ VectioTransport::processPendingMsgsToSend(){
         // schedule the next grant queue processing event after transmission time
         // of data packet corresponding to the current grant packet
         double trans_delay = (pktByteLen + 
-        dataPkt->headerSize()) * 8.0 /nicBandwidth;
+        dataPkt->headerSize() + 80) * 8.0 /nicBandwidth;
+        // logFile << simTime() << " trans_delay: " << trans_delay << " " << simTime() + trans_delay << std::endl; 
         scheduleAt(simTime() + trans_delay, inboundGrantQueueTimer);
     }
     else {
@@ -946,6 +958,8 @@ VectioTransport::processPendingMsgsToGrant(){
         if(grntPkt->getPktType() == PktType::NONE){
             // nothing to grant
             delete grntPkt;
+            double trans_delay = (freeGrantSize * 8.0 /nicBandwidth);
+            scheduleAt(simTime() + trans_delay, outboundGrantQueueTimer);
             return;
         }
         assert(grntPkt->getPktType() == PktType::GRANT);

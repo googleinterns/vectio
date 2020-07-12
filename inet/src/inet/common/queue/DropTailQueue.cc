@@ -22,8 +22,10 @@
 #include "inet/linklayer/ethernet/Ethernet.h"
 #include "transport/HomaPkt.h"
 #include <fstream>
+#include <cqueue.h>
 
 extern std::ofstream logFile;
+extern std::ofstream logFile2;
 extern bool logPacketEvents;
 
 namespace inet {
@@ -37,10 +39,12 @@ void DropTailQueue::initialize()
     queue.setName(par("queueName"));
 
     // Configure the HomaPkt priority sort function
-    if (par("transportType").stdstringValue() == "HomaTransport") {
+    if (par("transportType").stdstringValue() == "VectioTransport") {
         queue.setup(&HomaPkt::comparePrios);
     } else if (par("transportType").stdstringValue() == "PseudoIdealTransport") {
         queue.setup(&HomaPkt::compareSizeAndPrios);
+    } else {
+        assert(false);
     }
 
     //statistics
@@ -109,24 +113,55 @@ cMessage *DropTailQueue::enqueue(cMessage *msg)
             cModule* parentHost = this->getParentModule();
             cModule* grandParentHost = parentHost->getParentModule();
             cModule* grandGrandParentHost = grandParentHost->getParentModule();
+            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"tor") == 0 && grandGrandParentHost->getIndex() == 0){
             switch (homaPkt->getPktType()) {
                 case PktType::REQUEST:
-                    logFile << simTime() << " req packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
-                    logFile.flush();
+                    logFile2 << simTime() << "len: " << queue.length() << " bytelen: " << queue.getByteLength() << " msg id: " << homaPkt->getMsgId() << " req packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile2.flush();
                     break;
                 case PktType::GRANT:
-                    logFile << simTime() << " grant packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
-                    logFile.flush();
+                    logFile2 << simTime() << "len: " << queue.length() << " bytelen: " << queue.getByteLength() << " msg id: " << homaPkt->getMsgId() << " grant packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile2.flush();
                     break;
                 case PktType::SCHED_DATA:
-                    logFile << simTime() << " sched data packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
-                    logFile.flush();
+                    logFile2 << simTime() << "len: " << queue.length() << " bytelen: " << queue.getByteLength() << " msg id: " << homaPkt->getMsgId() << " sched data packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << " firstbyte: " << homaPkt->getSchedDataFields().firstByte << std::endl;
+                    logFile2.flush();
                     break;
                 case PktType::UNSCHED_DATA:
-                    
+                    logFile2 << simTime() << "len: " << queue.length() << " bytelen: " << queue.getByteLength() << " msg id: " << homaPkt->getMsgId() << " unsched data packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << " firstbyte: " << homaPkt->getUnschedFields().firstByte << std::endl;
+                    logFile2.flush();
                     break;
-                // default:
-                //     throw cRuntimeError("HomaPkt arrived at the queue has unknown type.");
+                default:
+                    logFile2 << simTime() << "HomaPkt arrived at the queue has unknown type. " << homaPkt->getPktType() << " " << std::endl;
+                    logFile2.flush();
+            }
+
+            if(1){
+                cQueue::Iterator itr = cQueue::Iterator(queue);
+                logFile2 << simTime() << "Printing queue: ";
+                for(; itr.end() == false; itr++ ){
+                    cObject* tempcObj = itr();
+                    cPacket* tempcPkt = HomaPkt::searchEncapHomaPkt(check_and_cast<cPacket*>(tempcObj));
+                    if(tempcPkt){
+                        HomaPkt* homaPkt2 = check_and_cast<HomaPkt*>(tempcPkt);
+                        logFile2 << homaPkt2->getPktType() << ":msgid:" << homaPkt2->getMsgId() << " ";
+                    }
+                    else{
+                        logFile2 << " UI ";
+                    }
+                }
+                logFile2 << std::endl;
+                logFile2.flush();
+            }
+            }
+        }
+        else{
+            cModule* parentHost = this->getParentModule();
+            cModule* grandParentHost = parentHost->getParentModule();
+            cModule* grandGrandParentHost = grandParentHost->getParentModule();
+            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"tor") == 0 && grandGrandParentHost->getIndex() == 0){
+            logFile2 << simTime() << " some other packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+            logFile2.flush();
             }
         }
     }
@@ -150,24 +185,38 @@ cMessage *DropTailQueue::dequeue()
             cModule* parentHost = this->getParentModule();
             cModule* grandParentHost = parentHost->getParentModule();
             cModule* grandGrandParentHost = grandParentHost->getParentModule();
+            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"tor") == 0 && grandGrandParentHost->getIndex() == 0){
             switch (homaPkt->getPktType()) {
                 case PktType::REQUEST:
-                    logFile << simTime() << " req packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
-                    logFile.flush();
+                    logFile2 << simTime() << "len: " << queue.length() << " bytelen: " << queue.getByteLength() << " msg id: " << homaPkt->getMsgId() << " req packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile2.flush();
                     break;
                 case PktType::GRANT:
-                    logFile << simTime() << " grant packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
-                    logFile.flush();
+                    logFile2 << simTime() << "len: " << queue.length() << " bytelen: " << queue.getByteLength() << " msg id: " << homaPkt->getMsgId() << " grant packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile2.flush();
                     break;
                 case PktType::SCHED_DATA:
-                    logFile << simTime() << " sched data packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
-                    logFile.flush();
+                    logFile2 << simTime() << "len: " << queue.length() << " bytelen: " << queue.getByteLength() << " msg id: " << homaPkt->getMsgId() << " sched data packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile2.flush();
                     break;
                 case PktType::UNSCHED_DATA:
-                    
+                    logFile2 << simTime() << "len: " << queue.length() << " bytelen: " << queue.getByteLength() << " msg id: " << homaPkt->getMsgId() << " unsched data packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile2.flush();
                     break;
-                // default:
+                default:
+                    logFile2 << simTime() << "HomaPkt leaving the queue has unknown type. " << homaPkt->getPktType() << std::endl;
+                    logFile2.flush();
                 //     throw cRuntimeError("HomaPkt arrived at the queue has unknown type.");
+            }
+            }
+        }
+        else{
+            cModule* parentHost = this->getParentModule();
+            cModule* grandParentHost = parentHost->getParentModule();
+            cModule* grandGrandParentHost = grandParentHost->getParentModule();
+            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"tor") == 0 && grandGrandParentHost->getIndex() == 0){
+            logFile2 << simTime() << " some other packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
+                    logFile2.flush();
             }
         }
     }

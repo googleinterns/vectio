@@ -19,6 +19,7 @@
 #include <fstream>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 #include "VectioTransport.h"
 #include "inet/networklayer/common/L3AddressResolver.h"
 #include "inet/networklayer/common/InterfaceEntry.h"
@@ -29,7 +30,7 @@ Define_Module(VectioTransport);
 
 std::ofstream logFile;
 std::ofstream logFile2;
-bool logPacketEvents = false;
+bool logPacketEvents = true;
 
 VectioTransport::VectioTransport()
     : socket()
@@ -476,8 +477,8 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
     if (logEvents) {
         logFile << simTime() << " Received data pkt for msg: " 
         << rxPkt->getMsgId() << " at the receiver: " << rxPkt->getDestAddr() 
-        << " size: " << rxPkt->getDataBytes() << " sent at: " 
-        << rxPkt->getTimestamp() << std::endl;
+        << " size: " << rxPkt->getDataBytes() << " scheduled at: " 
+        << rxPkt->pktScheduleTime << " first enqueued at: " << rxPkt->pktFirstEnqueueTime << std::endl;
         logFile.flush();
     }
 
@@ -538,7 +539,10 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
         bytesToSend -= alreadyGrantedBytes;
         inboundRxMsg->bytesGranted = alreadyGrantedBytes;
 
-        inboundRxMsg->firstPktSentTime = rxPkt->getTimestamp();
+        // inboundRxMsg->firstPktSentTime = rxPkt->getTimestamp();
+        inboundRxMsg->firstPktSchedTime = rxPkt->pktScheduleTime;
+        inboundRxMsg->firstPktEnqueueTime = rxPkt->pktFirstEnqueueTime;
+        assert(inboundRxMsg->firstPktEnqueueTime.dbl() >= inboundRxMsg->firstPktSchedTime.dbl());
 
         // update the inflight granted bytes
         currentRcvInFlightGrantBytes += alreadyGrantedBytes;
@@ -634,7 +638,10 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
         rxMsg->setTransportSchedDelay(SIMTIME_ZERO);
         rxMsg->setByteLength(inboundRxMsg->msgByteLen);
         rxMsg->setMsgBytesOnWire(inboundRxMsg->totalBytesOnWire);
-        rxMsg->setFirstPktSentTime(inboundRxMsg->firstPktSentTime);
+        // rxMsg->setFirstPktSentTime(inboundRxMsg->firstPktSentTime);
+        rxMsg->setFirstPktSchedTime(inboundRxMsg->firstPktSchedTime);
+        rxMsg->setFirstPktEnqueueTime(inboundRxMsg->firstPktEnqueueTime);
+        assert(inboundRxMsg->firstPktEnqueueTime.dbl() >= inboundRxMsg->firstPktSchedTime.dbl());
         send(rxMsg, "appOut", 0);
 
         // send an ACK back to sender to delete outboundmsg
@@ -680,7 +687,8 @@ VectioTransport::processNackPkt(HomaPkt* rxPkt)
         // resend the data packets corresponding to the first and last bytes
         HomaPkt* resendDataPkt = new HomaPkt();
         resendDataPkt->setPktType(PktType::SCHED_DATA);
-        resendDataPkt->setTimestamp(simTime());
+        // resendDataPkt->setTimestamp(simTime());
+        resendDataPkt->pktScheduleTime = simTime();
         int firstByte = rxPkt->getSchedDataFields().firstByte;
         int lastByte = rxPkt->getSchedDataFields().lastByte;
         if (lastByte - firstByte + 1 < grantSizeBytes) {
@@ -732,7 +740,8 @@ VectioTransport::processPendingMsgsToSend(){
     if (pendingMsgsToSend.empty() != true) {
         inboundGrantQueueBusy = true;
         HomaPkt* dataPkt = extractDataPkt("SRPT");
-        dataPkt->setTimestamp(simTime());
+        // dataPkt->setTimestamp(simTime());
+        dataPkt->pktScheduleTime = simTime();
         int pktByteLen = 0;
         if (dataPkt->getPktType() == PktType::SCHED_DATA || 
         dataPkt->getPktType() == PktType::UNSCHED_DATA){
@@ -868,6 +877,8 @@ VectioTransport::extractDataPkt(const char* schedulingPolicy){
             
             uint32_t pktByteLen = std::min((uint32_t)grantSizeBytes,(uint32_t)bytesLeftToSend);
             lastByte = firstByte + pktByteLen - 1;
+            int outboundMsgRemBytes = outboundSxMsg->msgByteLen - (lastByte + 1);
+            assert(outboundMsgRemBytes >= 0);
             if (lastByte <= freeGrantSize) {
                 // send unsched packet
                 UnschedFields unschedField;
@@ -887,9 +898,17 @@ VectioTransport::extractDataPkt(const char* schedulingPolicy){
                 schedField.lastByte = lastByte;
                 sxPkt->setPktType(PktType::SCHED_DATA);
                 sxPkt->setSchedDataFields(schedField);
-                sxPkt->setPriority(outboundSxMsg->schedPrio);
-                assert(outboundSxMsg->schedPrio >= 2);
-                assert(outboundSxMsg->schedPrio <= 7);
+                // sxPkt->setPriority(outboundSxMsg->schedPrio);
+                // assert(outboundSxMsg->schedPrio >= 2);
+                // assert(outboundSxMsg->schedPrio <= 7);
+                int prio = 2;
+                if(outboundSxMsg->msgByteLen > 0){
+                    prio = std::min(7,2 + std::max(0,((int)log10(outboundSxMsg->msgByteLen) - 3)));
+                }
+                sxPkt->setPriority(prio);
+                logFile << "prio set: " << prio << std::endl;
+                assert(prio >= 2);
+                assert(prio <= 7);
             }
             sxPkt->setByteLength(pktByteLen + sxPkt->headerSize());
             firstByte = lastByte + 1;

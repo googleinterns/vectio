@@ -120,7 +120,9 @@ class VectioTransport : public cSimpleModule
         VectioTransport* transport;
         int bytesGranted = -1;
         int bytesInFlight = -1;
-        simtime_t firstPktSentTime;
+        // simtime_t firstPktSentTime;
+        simtime_t firstPktSchedTime;
+        simtime_t firstPktEnqueueTime;
     };
 
     class OutboundMsg
@@ -193,7 +195,7 @@ class VectioTransport : public cSimpleModule
     std::queue<HomaPkt*> outboundGrantQueue;
     bool inboundGrantQueueBusy;
     bool outboundGrantQueueBusy;
-    int freeGrantSize = 10000;
+    int freeGrantSize = 4000;
     double nicBandwidth = 10e9; //TODO initialize using ini file
 
     //use this instead of outbound grant queue
@@ -208,10 +210,10 @@ class VectioTransport : public cSimpleModule
     typedef std::map<uint64_t, std::set<inet::L3Address>> FinishedMsgsMap;
     FinishedMsgsMap finishedMsgs;
 
-    double currentRtt = 2.0 * 5e-6;
+    double currentRtt = 2.0 * 1.6e-6;
 
     // max allowed inflight grant bytes per receiver
-    int allowedInFlightGrantedBytes = ((int)(2.0 * 5e-6 * 10e9 / 8.0));
+    int allowedInFlightGrantedBytes = ((int)(2.0 * 1.6e-6 * 10e9 / 8.0));
     int currentRcvInFlightGrantBytes = 0;
 
     typedef std::map<inet::L3Address,int> SenderInFlightGrantBytes;
@@ -222,7 +224,7 @@ class VectioTransport : public cSimpleModule
     typedef std::map<inet::L3Address,std::pair<uint64_t,int>> SenderActiveGrantedMsg;
     SenderActiveGrantedMsg senderActiveGrantedMsg;
 
-    int degOverComm = 2; 
+    int degOverComm = 4; 
 
     public:
       int grantSizeBytes = 1000;

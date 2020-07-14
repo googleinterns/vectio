@@ -113,7 +113,7 @@ cMessage *DropTailQueue::enqueue(cMessage *msg)
             cModule* parentHost = this->getParentModule();
             cModule* grandParentHost = parentHost->getParentModule();
             cModule* grandGrandParentHost = grandParentHost->getParentModule();
-            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"tor") == 0 && grandGrandParentHost->getIndex() == 0){
+            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"nic") == 0 && grandGrandParentHost->getIndex() == 0){
             switch (homaPkt->getPktType()) {
                 case PktType::REQUEST:
                     logFile2 << simTime() << "len: " << queue.length() << " bytelen: " << queue.getByteLength() << " msg id: " << homaPkt->getMsgId() << " req packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
@@ -159,7 +159,7 @@ cMessage *DropTailQueue::enqueue(cMessage *msg)
             cModule* parentHost = this->getParentModule();
             cModule* grandParentHost = parentHost->getParentModule();
             cModule* grandGrandParentHost = grandParentHost->getParentModule();
-            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"tor") == 0 && grandGrandParentHost->getIndex() == 0){
+            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"nic") == 0 && grandGrandParentHost->getIndex() == 0){
             logFile2 << simTime() << " some other packet at droptail enqueue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
             logFile2.flush();
             }
@@ -185,7 +185,12 @@ cMessage *DropTailQueue::dequeue()
             cModule* parentHost = this->getParentModule();
             cModule* grandParentHost = parentHost->getParentModule();
             cModule* grandGrandParentHost = grandParentHost->getParentModule();
-            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"tor") == 0 && grandGrandParentHost->getIndex() == 0){
+            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"nic") == 0){
+                if(homaPkt->getPktType() == PktType::UNSCHED_DATA || homaPkt->getPktType() == PktType::SCHED_DATA){
+                    homaPkt->pktFirstEnqueueTime = simTime();
+                }
+            }
+            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"nic") == 0 && grandGrandParentHost->getIndex() == 0){
             switch (homaPkt->getPktType()) {
                 case PktType::REQUEST:
                     logFile2 << simTime() << "len: " << queue.length() << " bytelen: " << queue.getByteLength() << " msg id: " << homaPkt->getMsgId() << " req packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
@@ -214,7 +219,7 @@ cMessage *DropTailQueue::dequeue()
             cModule* parentHost = this->getParentModule();
             cModule* grandParentHost = parentHost->getParentModule();
             cModule* grandGrandParentHost = grandParentHost->getParentModule();
-            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"tor") == 0 && grandGrandParentHost->getIndex() == 0){
+            if(strcmp(grandParentHost->getName(),"eth") == 0 && strcmp(grandGrandParentHost->getName(),"nic") == 0 && grandGrandParentHost->getIndex() == 0){
             logFile2 << simTime() << " some other packet at droptail dequeue: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandGrandParentHost->getName() << " " << grandGrandParentHost->getIndex() << std::endl;
                     logFile2.flush();
             }

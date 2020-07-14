@@ -643,7 +643,8 @@ def main():
     if len(args) > 2:
         fctFile = args[2]
     else:
-        fctFile = '../homatransport/src/dcntopo/results/fcts.txt'
+        fctFile = '../homatransport/src/dcntopo/results/fcts-priosize.txt'
+    print(fctFile)
 
     # sp = ScalarParser(scalarResultFile)
     # parsedStats = AttrDict()
@@ -686,6 +687,28 @@ def main():
             count += 1
             print("Check row: ", i+1, " slowdown: ", fcts.slowdowns[i])
     print("No of bad slowdowns: ", count)
+
+    print("Printing binned slowdowns")
+    for i in range(len(fcts.binnedSlowdowns)):
+        minSize = 10**i
+        maxSize = ((10**(i+1)) - 1)
+        slowdowns = fcts.binnedSlowdowns[i]
+        if(len(slowdowns) > 0):
+            print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns), " mean slowdown: ", sum(slowdowns)/len(slowdowns), " 90%: ", percentile(slowdowns,90), " 99%: ", percentile(slowdowns,99), " max: ", max(slowdowns))
+        else:
+            print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns))
+
+    print("Printing delay fractions")
+    for i in range(len(fcts.binnedAdmitFractions)):
+        minSize = 10**i
+        maxSize = ((10**(i+1)) - 1)
+        admitFractions = fcts.binnedAdmitFractions[i]
+        transportFractions = fcts.binnedTransportFractions[i]
+        queueFractions = fcts.binnedQueueFractions[i]
+        if(len(admitFractions) > 0):
+            print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(admitFractions), " mean admitF: ", sum(admitFractions)/len(admitFractions), " 90%: ", percentile(admitFractions,90), " 99%: ", percentile(admitFractions,99), "max: ", max(admitFractions), " mean transportF: ", sum(transportFractions)/len(transportFractions), " 90%: ", percentile(transportFractions,90), " 99%: ", percentile(transportFractions,99), "max: ", max(transportFractions), " mean queueF: ", sum(queueFractions)/len(queueFractions), " 90%: ", percentile(queueFractions,90), " 99%: ", percentile(queueFractions,99), "max: ", max(queueFractions))
+        else:
+            print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(admitFractions))
 
 if __name__ == '__main__':
     sys.exit(main());

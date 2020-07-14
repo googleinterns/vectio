@@ -534,7 +534,7 @@ WorkloadSynthesizer::processRcvdMsg(cPacket* msg)
     << parentHostIdx << " " << srcAddr << " " << destAddr 
     << " " << msgByteLen << " " << rcvdMsg->getMsgCreationTime().dbl() 
     << " " << simTime() << " " << completionTime.dbl() << " " 
-    << idealMsgEndToEndDelay(rcvdMsg) << " " << rcvdMsg->getFirstPktSentTime() << std::endl;
+    << idealMsgEndToEndDelay(rcvdMsg) << " " << rcvdMsg->getFirstPktSchedTime() << " " << rcvdMsg->getFirstPktEnqueueTime() << std::endl;
     outputFile.flush();
 
     delete rcvdMsg;

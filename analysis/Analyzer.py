@@ -20,7 +20,7 @@ import warnings
 # sys.path.insert(0, os.environ['HOME'] + 'vectio/analysis')
 
 from parseResultFiles import *
-from parseFctFile import *
+from parseFctFile import *  
 
 def copyExclude(source, dest, exclude):
     selectKeys = (key for key in source if key not in exclude)

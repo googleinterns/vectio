@@ -57,14 +57,14 @@ Lagger::handleMessage(cMessage *msg)
             if (logPacketEvents){
                 cModule* parentHost = this->getParentModule();
                 cModule* grandParentHost = parentHost->getParentModule();
-                logFile << simTime() << " At input lagger: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandParentHost->getIndex() << std::endl;
+                // logFile << simTime() << " At input lagger: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandParentHost->getIndex() << std::endl;
             }
         } else if (hookType == "OutputHook") {
             outputHookPktHandler(msg);
             if (logPacketEvents){
                 cModule* parentHost = this->getParentModule();
                 cModule* grandParentHost = parentHost->getParentModule();
-                logFile << simTime() << " At output lagger: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandParentHost->getIndex() << std::endl;
+                // logFile << simTime() << " At output lagger: " << parentHost->getName() << " " << grandParentHost->getName() << " " << grandParentHost->getIndex() << std::endl;
             }
         } else {
             throw cRuntimeError("Lagger type '%s' is not recognized.",

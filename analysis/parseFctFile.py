@@ -21,8 +21,10 @@ class FctParser():
         self.hostBytesRcvd = [0 for i in range(self.numHosts)]
         self.hostThrouputs = [0.0 for i in range(self.numHosts)]
         self.senderStartSendingTime = [float("inf") for i in range(self.numHosts)]
+        self.senderMaxStartSendingTime = [float(0) for i in range(self.numHosts)]
         self.senderStopSendingTime = [0.0 for i in range(self.numHosts)]
         self.throughputs = [0.0 for i in range(self.numHosts)]
+        self.inloads = [0.0 for i in range(self.numHosts)]
         self.delays = []
         self.qdelays = []
         self.adelays = []
@@ -84,12 +86,16 @@ class FctParser():
                     self.senderStartSendingTime[src] = msgCreationTime
                 if(msgCompletionTime > self.senderStopSendingTime[src]):
                     self.senderStopSendingTime[src] = msgCompletionTime
+                if(msgCreationTime > self.senderMaxStartSendingTime[src]):
+                    self.senderMaxStartSendingTime[src] = msgCreationTime
 
         for i in range(self.numHosts):
             if(self.hostBytesSent[i] > 0):
                 self.throughputs[i] = (self.hostBytesSent[i] * 8.0 / ((self.senderStopSendingTime[src] - self.senderStartSendingTime[src]) * self.linkBw))
+                self.inloads[i] = (self.hostBytesSent[i] * 8.0 / ((self.senderMaxStartSendingTime[src] - self.senderStartSendingTime[src]) * self.linkBw))
             else:
                 self.throughputs[i] = 0.0
+                self.inloads[i] = 0.0
 
         for i in range(len(self.slowdowns)):
             msgSize = self.msgSizes[i]

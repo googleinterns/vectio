@@ -627,13 +627,169 @@ def printGenralInfo(xmlParsedDic, generalInfo):
     print('TransportScheme:'.ljust(tw) + '{0} '.format(generalInfo.transportSchemeType).center(fw) + 'Workload Type:'.ljust(tw) +
         '{0}'.format(generalInfo.workloadType).center(fw))
 
+def computeBytesAndRates(parsedStats, xmlParsedDic):
+    trafficDic = AttrDict()
+    txAppsBytes = trafficDic.sxHostsTraffic.apps.sx.bytes = []
+    txAppsRates = trafficDic.sxHostsTraffic.apps.sx.rates = []
+    rxAppsBytes = trafficDic.rxHostsTraffic.apps.rx.bytes = []
+    rxAppsRates = trafficDic.rxHostsTraffic.apps.rx.rates = []
+    txNicsBytes = trafficDic.sxHostsTraffic.nics.sx.bytes = []
+    txNicsRates = trafficDic.sxHostsTraffic.nics.sx.rates = []
+    txNicsDutyCycles = trafficDic.sxHostsTraffic.nics.sx.dutyCycles = []
+    rxNicsBytes = trafficDic.rxHostsTraffic.nics.rx.bytes = []
+    rxNicsRates = trafficDic.rxHostsTraffic.nics.rx.rates = []
+    rxNicsDutyCycles = trafficDic.rxHostsTraffic.nics.rx.dutyCycles = []
+
+    nicTxBytes = trafficDic.hostsTraffic.nics.sx.bytes = []
+    nicTxRates = trafficDic.hostsTraffic.nics.sx.rates = []
+    nicTxDutyCycles = trafficDic.hostsTraffic.nics.sx.dutyCycles = []
+    nicRxBytes = trafficDic.hostsTraffic.nics.rx.bytes = []
+    nicRxRates = trafficDic.hostsTraffic.nics.rx.rates = []
+    nicRxDutyCycles = trafficDic.hostsTraffic.nics.rx.dutyCycles = []
+
+    ethInterArrivalGapBit = 12*8.0 + 8.0*8
+    for host in parsedStats.hosts.keys():
+        hostId = int(re.match('nic\[([0-9]+)]', host).group(1))
+        hostStats = parsedStats.hosts[host]
+        nicSendBytes = hostStats.access('eth[0].mac.txPk:sum(packetBytes).value')
+        nicSendRate = hostStats.access('eth[0].mac.\"bits/sec sent\".value')/1e9
+        # Include the 12Bytes ethernet inter arrival gap in the bit rate
+        nicSendRate += (hostStats.access('eth[0].mac.\"frames/sec sent\".value') * ethInterArrivalGapBit / 1e9)
+        nicSendDutyCycle = hostStats.access('eth[0].mac.\"tx channel utilization (%)\".value')
+        nicRcvBytes = hostStats.access('eth[0].mac.rxPkOk:sum(packetBytes).value')
+        nicRcvRate = hostStats.access('eth[0].mac.\"bits/sec rcvd\".value')/1e9
+        # Include the 12Bytes ethernet inter arrival gap in the bit rate
+        nicRcvRate += (hostStats.access('eth[0].mac.\"frames/sec rcvd\".value') * ethInterArrivalGapBit / 1e9)
+        nicRcvDutyCycle = hostStats.access('eth[0].mac.\"rx channel utilization (%)\".value')
+        nicTxBytes.append(nicSendBytes)
+        nicTxRates.append(nicSendRate)
+        nicTxDutyCycles.append(nicSendDutyCycle)
+        nicRxBytes.append(nicRcvBytes)
+        nicRxRates.append(nicRcvRate)
+        nicRxDutyCycles.append(nicRcvDutyCycle)
+
+        if hostId in xmlParsedDic.senderIds:
+            # txAppsBytes.append(hostStats.access('trafficGeneratorApp[0].sentMsg:sum(packetBytes).value'))
+            # txAppsRates.append(hostStats.access('trafficGeneratorApp[0].sentMsg:last(sumPerDuration(packetBytes)).value')*8.0/1e9)
+            txNicsBytes.append(nicSendBytes)
+            txNicsRates.append(nicSendRate)
+            txNicsDutyCycles.append(nicSendDutyCycle)
+        if hostId in xmlParsedDic.receiverIds:
+            # rxAppsBytes.append(hostStats.access('trafficGeneratorApp[0].rcvdMsg:sum(packetBytes).value'))
+            # rxAppsRates.append(hostStats.access('trafficGeneratorApp[0].rcvdMsg:last(sumPerDuration(packetBytes)).value')*8.0/1e9)
+            rxNicsBytes.append(nicRcvBytes)
+            rxNicsRates.append(nicRcvRate)
+            rxNicsDutyCycles.append(nicRcvDutyCycle)
+
+    upNicsTxBytes = trafficDic.torsTraffic.upNics.sx.bytes = []
+    upNicsTxRates = trafficDic.torsTraffic.upNics.sx.rates = []
+    upNicsTxDutyCycle = trafficDic.torsTraffic.upNics.sx.dutyCycles = []
+    upNicsRxBytes = trafficDic.torsTraffic.upNics.rx.bytes = []
+    upNicsRxRates = trafficDic.torsTraffic.upNics.rx.rates = []
+    upNicsRxDutyCycle = trafficDic.torsTraffic.upNics.rx.dutyCycles = []
+    downNicsTxBytes =  trafficDic.torsTraffic.downNics.sx.bytes = []
+    downNicsTxRates =  trafficDic.torsTraffic.downNics.sx.rates = []
+    downNicsTxDutyCycle = trafficDic.torsTraffic.downNics.sx.dutyCycles = []
+    downNicsRxBytes = trafficDic.torsTraffic.downNics.rx.bytes = []
+    downNicsRxRates = trafficDic.torsTraffic.downNics.rx.rates = []
+    downNicsRxDutyCycle = trafficDic.torsTraffic.downNics.rx.dutyCycles = []
+
+    numServersPerTor = int(parsedStats.generalInfo.numServersPerTor)
+    fabricLinkSpeed = int(parsedStats.generalInfo.fabricLinkSpeed.strip('Gbps'))
+    nicLinkSpeed = int(parsedStats.generalInfo.nicLinkSpeed.strip('Gbps'))
+    numTorUplinkNics = int(floor(numServersPerTor * nicLinkSpeed / fabricLinkSpeed))
+    for torKey in parsedStats.tors.keys():
+        tor = parsedStats.tors[torKey]
+        for ifaceId in range(0, numServersPerTor + numTorUplinkNics):
+            nicRecvBytes = tor.access('eth[{0}].mac.rxPkOk:sum(packetBytes).value'.format(ifaceId))
+            nicRecvRates = tor.access('eth[{0}].mac.\"bits/sec rcvd\".value'.format(ifaceId))/1e9
+            # Include the 12Bytes ethernet inter arrival gap in the bit rate
+            nicRecvRates += (tor.access('eth[{0}].mac.\"frames/sec rcvd\".value'.format(ifaceId)) * ethInterArrivalGapBit / 1e9)
+            nicRecvDutyCycle = tor.access('eth[{0}].mac.\"rx channel utilization (%)\".value'.format(ifaceId))
+            nicSendBytes = tor.access('eth[{0}].mac.txPk:sum(packetBytes).value'.format(ifaceId))
+            nicSendRates = tor.access('eth[{0}].mac.\"bits/sec sent\".value'.format(ifaceId))/1e9
+            # Include the 12Bytes ethernet inter arrival gap in the bit rate
+            nicSendRates += (tor.access('eth[{0}].mac.\"frames/sec sent\".value'.format(ifaceId)) * ethInterArrivalGapBit / 1e9)
+            nicSendDutyCycle = tor.access('eth[{0}].mac.\"tx channel utilization (%)\".value'.format(ifaceId))
+            if ifaceId < numServersPerTor:
+                downNicsRxBytes.append(nicRecvBytes)
+                downNicsRxRates.append(nicRecvRates)
+                downNicsRxDutyCycle.append(nicRecvDutyCycle)
+                downNicsTxBytes.append(nicSendBytes)
+                downNicsTxRates.append(nicSendRates)
+                downNicsTxDutyCycle.append(nicSendDutyCycle)
+            else :
+                upNicsRxBytes.append(nicRecvBytes)
+                upNicsRxRates.append(nicRecvRates)
+                upNicsRxDutyCycle.append(nicRecvDutyCycle)
+                upNicsTxBytes.append(nicSendBytes)
+                upNicsTxRates.append(nicSendRates)
+                upNicsTxDutyCycle.append(nicSendDutyCycle)
+    return trafficDic
+
+def printBytesAndRates(trafficDic):
+    printKeys = ['avgRate', 'cumRate', 'minRate', 'maxRate', 'cumBytes', 'avgDutyCycle', 'minDutyCycle', 'maxDutyCycle']
+    tw = 15
+    fw = 10
+    lineMax = 100
+    title = 'Traffic Characteristic (Rates, Bytes, and DutyCycle)'
+    print('\n'*2 + ('-'*len(title)).center(lineMax,' ') + '\n' + ('|' + title + '|').center(lineMax, ' ') +
+            '\n' + ('-'*len(title)).center(lineMax,' '))
+
+    print("="*lineMax)
+    print("Measurement".ljust(tw) + 'AvgRate'.center(fw) + 'CumRate'.center(fw) + 'MinRate'.center(fw) + 'MaxRate'.center(fw) +
+             'CumBytes'.center(fw) + 'Avg Duty'.center(fw) + 'Min Duty'.center(fw) + 'Max Duty'.center(fw))
+    print("Point".ljust(tw) + '(Gb/s)'.center(fw) + '(Gb/s)'.center(fw) + '(Gb/s)'.center(fw) + '(Gb/s)'.center(fw) +
+            '(MB)'.center(fw) + 'Cycle(%)'.center(fw) + 'Cycle(%)'.center(fw) + 'Cycle(%)'.center(fw))
+
+    print("_"*lineMax)
+    # digestTrafficInfo(trafficDic.sxHostsTraffic.apps.sx, 'SX Apps Send:')
+    # printStatsLine(trafficDic.sxHostsTraffic.apps.sx.trafficDigest, trafficDic.sxHostsTraffic.apps.sx.trafficDigest.title, tw, fw, '', printKeys)
+    digestTrafficInfo(trafficDic.sxHostsTraffic.nics.sx, 'SX NICs Send:')
+    printStatsLine(trafficDic.sxHostsTraffic.nics.sx.trafficDigest, trafficDic.sxHostsTraffic.nics.sx.trafficDigest.title, tw, fw, '', printKeys)
+    digestTrafficInfo(trafficDic.hostsTraffic.nics.sx, 'All NICs Send:')
+    printStatsLine(trafficDic.hostsTraffic.nics.sx.trafficDigest, trafficDic.hostsTraffic.nics.sx.trafficDigest.title, tw, fw, '', printKeys)
+
+
+    digestTrafficInfo(trafficDic.torsTraffic.downNics.rx, 'TORs Down Recv:')
+    printStatsLine(trafficDic.torsTraffic.downNics.rx.trafficDigest, trafficDic.torsTraffic.downNics.rx.trafficDigest.title, tw, fw, '', printKeys)
+    digestTrafficInfo(trafficDic.torsTraffic.upNics.sx, 'TORs Up Send:')
+    printStatsLine(trafficDic.torsTraffic.upNics.sx.trafficDigest, trafficDic.torsTraffic.upNics.sx.trafficDigest.title, tw, fw, '', printKeys)
+    digestTrafficInfo(trafficDic.torsTraffic.upNics.rx, 'TORs Up Recv:')
+    printStatsLine(trafficDic.torsTraffic.upNics.rx.trafficDigest, trafficDic.torsTraffic.upNics.rx.trafficDigest.title, tw, fw, '', printKeys)
+    digestTrafficInfo(trafficDic.torsTraffic.downNics.sx, 'TORs Down Send:')
+    printStatsLine(trafficDic.torsTraffic.downNics.sx.trafficDigest, trafficDic.torsTraffic.downNics.sx.trafficDigest.title, tw, fw, '', printKeys)
+
+
+    digestTrafficInfo(trafficDic.hostsTraffic.nics.rx, 'ALL NICs Recv:')
+    printStatsLine(trafficDic.hostsTraffic.nics.rx.trafficDigest, trafficDic.hostsTraffic.nics.rx.trafficDigest.title, tw, fw, '', printKeys)
+    digestTrafficInfo(trafficDic.rxHostsTraffic.nics.rx, 'RX NICs Recv:')
+    printStatsLine(trafficDic.rxHostsTraffic.nics.rx.trafficDigest, trafficDic.rxHostsTraffic.nics.rx.trafficDigest.title, tw, fw, '', printKeys)
+    # digestTrafficInfo(trafficDic.rxHostsTraffic.apps.rx, 'RX Apps Recv:')
+    # printStatsLine(trafficDic.rxHostsTraffic.apps.rx.trafficDigest, trafficDic.rxHostsTraffic.apps.rx.trafficDigest.title, tw, fw, '', printKeys)
+
+def digestTrafficInfo(trafficBytesAndRateDic, title):
+    trafficDigest = trafficBytesAndRateDic.trafficDigest
+    trafficDigest.title = title
+    if 'bytes' in trafficBytesAndRateDic.keys() and len(trafficBytesAndRateDic.bytes) > 0:
+        trafficDigest.cumBytes = sum(trafficBytesAndRateDic.bytes)/1e6
+    if 'rates' in trafficBytesAndRateDic.keys() and len(trafficBytesAndRateDic.rates) > 0:
+        trafficDigest.cumRate = sum(trafficBytesAndRateDic.rates)
+        trafficDigest.avgRate = trafficDigest.cumRate/float(len(trafficBytesAndRateDic.rates))
+        trafficDigest.minRate = min(trafficBytesAndRateDic.rates)
+        trafficDigest.maxRate = max(trafficBytesAndRateDic.rates)
+    if 'dutyCycles' in trafficBytesAndRateDic.keys() and len(trafficBytesAndRateDic.dutyCycles) > 0:
+        trafficDigest.avgDutyCycle = sum(trafficBytesAndRateDic.dutyCycles)/float(len(trafficBytesAndRateDic.dutyCycles))
+        trafficDigest.minDutyCycle = min(trafficBytesAndRateDic.dutyCycles)
+        trafficDigest.maxDutyCycle = max(trafficBytesAndRateDic.dutyCycles)
+
 def main():
     parser = OptionParser()
     options, args = parser.parse_args()
     if len(args) > 0:
         scalarResultFile = args[0]
     else:
-        scalarResultFile = '../homatransport/src/dcntopo/results/Vectio/WorkloadHadoop-6.sca'
+        scalarResultFile = '../homatransport/src/dcntopo/results/Vectio/InFileDist-6.sca'
 
     if len(args) > 1:
         xmlConfigFile = args[1]
@@ -643,72 +799,76 @@ def main():
     if len(args) > 2:
         fctFile = args[2]
     else:
-        fctFile = '../homatransport/src/dcntopo/results/fcts-priosize.txt'
+        fctFile = '../homatransport/src/dcntopo/results/fcts.txt'
     print(fctFile)
 
-    # sp = ScalarParser(scalarResultFile)
-    # parsedStats = AttrDict()
-    # parsedStats.hosts = sp.hosts
-    # parsedStats.tors = sp.tors
-    # parsedStats.aggrs = sp.aggrs
-    # parsedStats.cores = sp.cores
-    # parsedStats.generalInfo = sp.generalInfo
-    # parsedStats.globalListener = sp.globalListener
+    sp = ScalarParser(scalarResultFile)
+    parsedStats = AttrDict()
+    parsedStats.hosts = sp.hosts
+    parsedStats.tors = sp.tors
+    parsedStats.aggrs = sp.aggrs
+    parsedStats.cores = sp.cores
+    parsedStats.generalInfo = sp.generalInfo
+    parsedStats.globalListener = sp.globalListener
 
-    # xmlParsedDic = AttrDict()
-    # xmlParsedDic = parseXmlFile(xmlConfigFile, parsedStats.generalInfo)
+    xmlParsedDic = AttrDict()
+    xmlParsedDic = parseXmlFile(xmlConfigFile, parsedStats.generalInfo)
 
-    # queueWaitTimeDigest = AttrDict()
-    # hostQueueWaitTimes(parsedStats.hosts, xmlParsedDic, queueWaitTimeDigest)
-    # torsQueueWaitTime(parsedStats.tors, parsedStats.generalInfo, xmlParsedDic, queueWaitTimeDigest)
-    # aggrsQueueWaitTime(parsedStats.aggrs, parsedStats.generalInfo, xmlParsedDic, queueWaitTimeDigest)
-    # # printGenralInfo(xmlParsedDic, parsedStats.generalInfo)
+    queueWaitTimeDigest = AttrDict()
+    hostQueueWaitTimes(parsedStats.hosts, xmlParsedDic, queueWaitTimeDigest)
+    torsQueueWaitTime(parsedStats.tors, parsedStats.generalInfo, xmlParsedDic, queueWaitTimeDigest)
+    aggrsQueueWaitTime(parsedStats.aggrs, parsedStats.generalInfo, xmlParsedDic, queueWaitTimeDigest)
+    # printGenralInfo(xmlParsedDic, parsedStats.generalInfo)
+    trafficDic = computeBytesAndRates(parsedStats, xmlParsedDic)
+    printBytesAndRates(trafficDic)
 
-    # queueLen = computeQueueLength(parsedStats, xmlParsedDic)
-    # printQueueLength(queueLen)
-    # printQueueTimeStats(queueWaitTimeDigest, 'us')
+    queueLen = computeQueueLength(parsedStats, xmlParsedDic)
+    printQueueLength(queueLen)
+    printQueueTimeStats(queueWaitTimeDigest, 'us')
 
-    fcts = FctParser(fctFile, 144, 10e9)
-    print("Mean throughput: ", sum(fcts.throughputs)/len(fcts.throughputs))
-    print(fcts.throughputs)
-    # print(fcts.senderStartSendingTime)
-    # print(fcts.senderStopSendingTime)
-    print("Mean slowdown: ", sum(fcts.slowdowns)/len(fcts.slowdowns))
-    print("90 slowdown: ", percentile(fcts.slowdowns,90))
-    print("99 slowdown: ", percentile(fcts.slowdowns,99))
-    print("Max slowdown: ", max(fcts.slowdowns))
+    # fcts = FctParser(fctFile, 144, 10e9)
+    # print("Throughput: mean: ", sum(fcts.throughputs)/len(fcts.throughputs), " median: ", percentile(fcts.throughputs,50), " 99%: ", percentile(fcts.throughputs,99))
+    # print("Inloads: mean: ", sum(fcts.inloads)/len(fcts.inloads), " median: ", percentile(fcts.inloads,50), " 99%: ", percentile(fcts.inloads,99))
+    # # print("Throughputs: ", fcts.throughputs)
+    # # print("Inloads: ", fcts.inloads)
+    # # print(fcts.senderStartSendingTime)
+    # # print(fcts.senderStopSendingTime)
+    # print("Mean slowdown: ", sum(fcts.slowdowns)/len(fcts.slowdowns))
+    # print("90 slowdown: ", percentile(fcts.slowdowns,90))
+    # print("99 slowdown: ", percentile(fcts.slowdowns,99))
+    # print("Max slowdown: ", max(fcts.slowdowns))
 
-    print("Max index: ", fcts.slowdowns.index(max(fcts.slowdowns)))
-    print("No of msgs: ", len(fcts.slowdowns))
+    # print("Max index: ", fcts.slowdowns.index(max(fcts.slowdowns)))
+    # print("No of msgs: ", len(fcts.slowdowns))
 
-    count = 0
-    for i in range(len(fcts.slowdowns)):
-        if(fcts.slowdowns[i] > 20):
-            count += 1
-            print("Check row: ", i+1, " slowdown: ", fcts.slowdowns[i])
-    print("No of bad slowdowns: ", count)
+    # count = 0
+    # for i in range(len(fcts.slowdowns)):
+    #     if(fcts.slowdowns[i] > 20):
+    #         count += 1
+    #         # print("Check row: ", i+1, " slowdown: ", fcts.slowdowns[i])
+    # print("No of bad slowdowns: ", count)
 
-    print("Printing binned slowdowns")
-    for i in range(len(fcts.binnedSlowdowns)):
-        minSize = 10**i
-        maxSize = ((10**(i+1)) - 1)
-        slowdowns = fcts.binnedSlowdowns[i]
-        if(len(slowdowns) > 0):
-            print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns), " mean slowdown: ", sum(slowdowns)/len(slowdowns), " 90%: ", percentile(slowdowns,90), " 99%: ", percentile(slowdowns,99), " max: ", max(slowdowns))
-        else:
-            print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns))
+    # print("Printing binned slowdowns")
+    # for i in range(len(fcts.binnedSlowdowns)):
+    #     minSize = 10**i
+    #     maxSize = ((10**(i+1)) - 1)
+    #     slowdowns = fcts.binnedSlowdowns[i]
+    #     if(len(slowdowns) > 0):
+    #         print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns), " mean slowdown: ", sum(slowdowns)/len(slowdowns), " 90%: ", percentile(slowdowns,90), " 99%: ", percentile(slowdowns,99), " max: ", max(slowdowns))
+    #     else:
+    #         print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns))
 
-    print("Printing delay fractions")
-    for i in range(len(fcts.binnedAdmitFractions)):
-        minSize = 10**i
-        maxSize = ((10**(i+1)) - 1)
-        admitFractions = fcts.binnedAdmitFractions[i]
-        transportFractions = fcts.binnedTransportFractions[i]
-        queueFractions = fcts.binnedQueueFractions[i]
-        if(len(admitFractions) > 0):
-            print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(admitFractions), " mean admitF: ", sum(admitFractions)/len(admitFractions), " 90%: ", percentile(admitFractions,90), " 99%: ", percentile(admitFractions,99), "max: ", max(admitFractions), " mean transportF: ", sum(transportFractions)/len(transportFractions), " 90%: ", percentile(transportFractions,90), " 99%: ", percentile(transportFractions,99), "max: ", max(transportFractions), " mean queueF: ", sum(queueFractions)/len(queueFractions), " 90%: ", percentile(queueFractions,90), " 99%: ", percentile(queueFractions,99), "max: ", max(queueFractions))
-        else:
-            print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(admitFractions))
+    # print("Printing delay fractions")
+    # for i in range(len(fcts.binnedAdmitFractions)):
+    #     minSize = 10**i
+    #     maxSize = ((10**(i+1)) - 1)
+    #     admitFractions = fcts.binnedAdmitFractions[i]
+    #     transportFractions = fcts.binnedTransportFractions[i]
+    #     queueFractions = fcts.binnedQueueFractions[i]
+    #     if(len(admitFractions) > 0):
+    #         print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(admitFractions), " mean admitF: ", sum(admitFractions)/len(admitFractions), " 90%: ", percentile(admitFractions,90), " 99%: ", percentile(admitFractions,99), "max: ", max(admitFractions), " mean transportF: ", sum(transportFractions)/len(transportFractions), " 90%: ", percentile(transportFractions,90), " 99%: ", percentile(transportFractions,99), "max: ", max(transportFractions), " mean queueF: ", sum(queueFractions)/len(queueFractions), " 90%: ", percentile(queueFractions,90), " 99%: ", percentile(queueFractions,99), "max: ", max(queueFractions))
+    #     else:
+    #         print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(admitFractions))
 
 if __name__ == '__main__':
     sys.exit(main());

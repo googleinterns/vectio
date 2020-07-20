@@ -51,12 +51,12 @@ class MsgSizeDistributions {
             DistributionChoice sizeDistSelector, double avgRate = 5.0,
             int callerHostId = -1);
     ~MsgSizeDistributions() {};
-    void getSizeAndInterarrival(int &nextMsgSize, int& destHostId,
+    void getSizeAndInterarrival(int &msgId, int &nextMsgSize, int& destHostId,
         double &nextInterarrivalTime);
 
   private:
     std::vector<std::pair<int, double>> msgSizeProbDistVector;
-    std::queue<std::tuple<int, int, double>> msgSizeDestInterarrivalQueue;
+    std::queue<std::tuple<int, int, int, double>> msgSizeDestInterarrivalQueue;
 
     // The value of this variable will determine which distribution should be
     // used for generating new messages in the sizeGenratorWrapper()
@@ -72,7 +72,7 @@ class MsgSizeDistributions {
     int maxDataBytesPerPkt;
 
   private:
-    void getInfileSizeInterarrivalDest(int &msgSize, int &destHostId,
+    void getInfileSizeInterarrivalDest(int &msgId, int &msgSize, int &destHostId,
         double &nextInterarrivalTime);
     void getFacebookSizeInterarrival(int &msgSize,
             double &nextInterarrivalTime);

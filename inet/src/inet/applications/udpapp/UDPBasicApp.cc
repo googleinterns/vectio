@@ -123,7 +123,8 @@ void UDPBasicApp::sendPacket()
     int udpMsgBytes;
     int dummyDestHostId;
     double dummyInterArrival;
-    msgSizeGenerator.getSizeAndInterarrival(udpMsgBytes, dummyDestHostId,
+    int msgId;
+    msgSizeGenerator.getSizeAndInterarrival(msgId, udpMsgBytes, dummyDestHostId,
         dummyInterArrival);
     char msgName[32];
     if (udpMsgBytes == 0) {

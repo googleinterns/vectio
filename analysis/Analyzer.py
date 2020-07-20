@@ -789,7 +789,7 @@ def main():
     if len(args) > 0:
         scalarResultFile = args[0]
     else:
-        scalarResultFile = '../homatransport/src/dcntopo/results/Vectio/InFileDist-6.sca'
+        scalarResultFile = '../homatransport/src/dcntopo/results/Vectio/InFileDist-2.sca'
 
     if len(args) > 1:
         xmlConfigFile = args[1]
@@ -799,64 +799,64 @@ def main():
     if len(args) > 2:
         fctFile = args[2]
     else:
-        fctFile = '../homatransport/src/dcntopo/results/fcts.txt'
+        fctFile = '../homatransport/src/dcntopo/results/fcts-flows-imc10-100K-0.75.txt'
     print(fctFile)
 
-    sp = ScalarParser(scalarResultFile)
-    parsedStats = AttrDict()
-    parsedStats.hosts = sp.hosts
-    parsedStats.tors = sp.tors
-    parsedStats.aggrs = sp.aggrs
-    parsedStats.cores = sp.cores
-    parsedStats.generalInfo = sp.generalInfo
-    parsedStats.globalListener = sp.globalListener
+    # sp = ScalarParser(scalarResultFile)
+    # parsedStats = AttrDict()
+    # parsedStats.hosts = sp.hosts
+    # parsedStats.tors = sp.tors
+    # parsedStats.aggrs = sp.aggrs
+    # parsedStats.cores = sp.cores
+    # parsedStats.generalInfo = sp.generalInfo
+    # parsedStats.globalListener = sp.globalListener
 
-    xmlParsedDic = AttrDict()
-    xmlParsedDic = parseXmlFile(xmlConfigFile, parsedStats.generalInfo)
+    # xmlParsedDic = AttrDict()
+    # xmlParsedDic = parseXmlFile(xmlConfigFile, parsedStats.generalInfo)
 
-    queueWaitTimeDigest = AttrDict()
-    hostQueueWaitTimes(parsedStats.hosts, xmlParsedDic, queueWaitTimeDigest)
-    torsQueueWaitTime(parsedStats.tors, parsedStats.generalInfo, xmlParsedDic, queueWaitTimeDigest)
-    aggrsQueueWaitTime(parsedStats.aggrs, parsedStats.generalInfo, xmlParsedDic, queueWaitTimeDigest)
-    # printGenralInfo(xmlParsedDic, parsedStats.generalInfo)
-    trafficDic = computeBytesAndRates(parsedStats, xmlParsedDic)
-    printBytesAndRates(trafficDic)
+    # queueWaitTimeDigest = AttrDict()
+    # hostQueueWaitTimes(parsedStats.hosts, xmlParsedDic, queueWaitTimeDigest)
+    # torsQueueWaitTime(parsedStats.tors, parsedStats.generalInfo, xmlParsedDic, queueWaitTimeDigest)
+    # aggrsQueueWaitTime(parsedStats.aggrs, parsedStats.generalInfo, xmlParsedDic, queueWaitTimeDigest)
+    # # printGenralInfo(xmlParsedDic, parsedStats.generalInfo)
+    # trafficDic = computeBytesAndRates(parsedStats, xmlParsedDic)
+    # printBytesAndRates(trafficDic)
 
-    queueLen = computeQueueLength(parsedStats, xmlParsedDic)
-    printQueueLength(queueLen)
-    printQueueTimeStats(queueWaitTimeDigest, 'us')
+    # queueLen = computeQueueLength(parsedStats, xmlParsedDic)
+    # printQueueLength(queueLen)
+    # printQueueTimeStats(queueWaitTimeDigest, 'us')
 
-    # fcts = FctParser(fctFile, 144, 10e9)
-    # print("Throughput: mean: ", sum(fcts.throughputs)/len(fcts.throughputs), " median: ", percentile(fcts.throughputs,50), " 99%: ", percentile(fcts.throughputs,99))
-    # print("Inloads: mean: ", sum(fcts.inloads)/len(fcts.inloads), " median: ", percentile(fcts.inloads,50), " 99%: ", percentile(fcts.inloads,99))
-    # # print("Throughputs: ", fcts.throughputs)
-    # # print("Inloads: ", fcts.inloads)
-    # # print(fcts.senderStartSendingTime)
-    # # print(fcts.senderStopSendingTime)
-    # print("Mean slowdown: ", sum(fcts.slowdowns)/len(fcts.slowdowns))
-    # print("90 slowdown: ", percentile(fcts.slowdowns,90))
-    # print("99 slowdown: ", percentile(fcts.slowdowns,99))
-    # print("Max slowdown: ", max(fcts.slowdowns))
+    fcts = FctParser(fctFile, 144, 10e9)
+    print("Throughput: mean: ", sum(fcts.throughputs)/len(fcts.throughputs), " median: ", percentile(fcts.throughputs,50), " 99%: ", percentile(fcts.throughputs,99))
+    print("Inloads: mean: ", sum(fcts.inloads)/len(fcts.inloads), " median: ", percentile(fcts.inloads,50), " 99%: ", percentile(fcts.inloads,99))
+    # print("Throughputs: ", fcts.throughputs)
+    # print("Inloads: ", fcts.inloads)
+    # print(fcts.senderStartSendingTime)
+    # print(fcts.senderStopSendingTime)
+    print("Mean slowdown: ", sum(fcts.slowdowns)/len(fcts.slowdowns))
+    print("90 slowdown: ", percentile(fcts.slowdowns,90))
+    print("99 slowdown: ", percentile(fcts.slowdowns,99))
+    print("Max slowdown: ", max(fcts.slowdowns))
 
-    # print("Max index: ", fcts.slowdowns.index(max(fcts.slowdowns)))
-    # print("No of msgs: ", len(fcts.slowdowns))
+    print("Max index: ", fcts.slowdowns.index(max(fcts.slowdowns)))
+    print("No of msgs: ", len(fcts.slowdowns))
 
-    # count = 0
-    # for i in range(len(fcts.slowdowns)):
-    #     if(fcts.slowdowns[i] > 20):
-    #         count += 1
-    #         # print("Check row: ", i+1, " slowdown: ", fcts.slowdowns[i])
-    # print("No of bad slowdowns: ", count)
+    count = 0
+    for i in range(len(fcts.slowdowns)):
+        if(fcts.slowdowns[i] > 20):
+            count += 1
+            # print("Check row: ", i+1, " slowdown: ", fcts.slowdowns[i])
+    print("No of bad slowdowns: ", count)
 
-    # print("Printing binned slowdowns")
-    # for i in range(len(fcts.binnedSlowdowns)):
-    #     minSize = 10**i
-    #     maxSize = ((10**(i+1)) - 1)
-    #     slowdowns = fcts.binnedSlowdowns[i]
-    #     if(len(slowdowns) > 0):
-    #         print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns), " mean slowdown: ", sum(slowdowns)/len(slowdowns), " 90%: ", percentile(slowdowns,90), " 99%: ", percentile(slowdowns,99), " max: ", max(slowdowns))
-    #     else:
-    #         print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns))
+    print("Printing binned slowdowns")
+    for i in range(len(fcts.binnedSlowdowns)):
+        minSize = 10**i
+        maxSize = ((10**(i+1)) - 1)
+        slowdowns = fcts.binnedSlowdowns[i]
+        if(len(slowdowns) > 0):
+            print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns), " mean slowdown: ", sum(slowdowns)/len(slowdowns), " 90%: ", percentile(slowdowns,90), " 99%: ", percentile(slowdowns,99), " max: ", max(slowdowns))
+        else:
+            print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns))
 
     # print("Printing delay fractions")
     # for i in range(len(fcts.binnedAdmitFractions)):

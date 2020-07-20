@@ -31,4 +31,5 @@ packet AppMessage {
      long msgBytesOnWire;
      simtime_t firstPktSchedTime;
      simtime_t firstPktEnqueueTime;
+     uint64_t msgId;
 }

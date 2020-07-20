@@ -95,9 +95,7 @@ void PassiveQueueBase::handleMessage(cMessage *msg)
                     emit(unschedDataQueueingTimeSignal, SIMTIME_ZERO);
                     break;
                 default:
-                     if (logPacketEvents) {
-                        logFile << "HomaPkt arrived at the queue has unknown type." << std::endl;
-                     }
+                     break;
             }
         }
         setTxPktDuration(pkt->getByteLength());
@@ -156,9 +154,7 @@ void PassiveQueueBase::requestPacket()
                     emit(unschedDataQueueingTimeSignal, simTime() - msg->getArrivalTime());
                     break;
                 default:
-                    if (logPacketEvents) {
-                        logFile << "HomaPkt arrived at the queue has unknown type." << std::endl;
-                     }
+                    break;
             }
         }
         setTxPktDuration(pkt->getByteLength());

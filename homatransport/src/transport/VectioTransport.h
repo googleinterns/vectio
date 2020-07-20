@@ -69,6 +69,7 @@ class VectioTransport : public cSimpleModule
     virtual void processPendingMsgsToGrant();
     virtual void processPendingMsgsToSend();
     virtual void processRetxTimer(TimerContext* timerContext);
+    virtual void processSendQueue();
     virtual void finish();
 
     virtual HomaPkt* extractGrantPkt(const char* schedulingPolicy);
@@ -86,7 +87,8 @@ class VectioTransport : public cSimpleModule
                        // grant queue
         OUTBOUNDQUEUE = 4, // Timer type when the transport wants to process the 
                        // grant queue
-        RETXTIMER = 5
+        RETXTIMER = 5,
+        SENDQUEUE = 6
     };
 
     class InboundMsg
@@ -158,6 +160,7 @@ class VectioTransport : public cSimpleModule
     cMessage* selfMsg;
     cMessage* inboundGrantQueueTimer;
     cMessage* outboundGrantQueueTimer;
+    cMessage* sendQueueTimer;
     cMessage* retxTimer;
 
     // udp ports through which this transport send and receive packets
@@ -168,8 +171,6 @@ class VectioTransport : public cSimpleModule
     bool logPacketEvents;
 
     // variables and states kept for administering outbound messages
-    uint64_t msgId; // unique monotonically increasing id for
-                    // each messages to send
     uint32_t maxDataBytesInPkt;
 
     // State and variables kept for managing inbound messages
@@ -195,7 +196,7 @@ class VectioTransport : public cSimpleModule
     std::queue<HomaPkt*> outboundGrantQueue;
     bool inboundGrantQueueBusy;
     bool outboundGrantQueueBusy;
-    int freeGrantSize = 4000;
+    int freeGrantSize = 10000;
     double nicBandwidth = 10e9; //TODO initialize using ini file
 
     //use this instead of outbound grant queue
@@ -210,10 +211,10 @@ class VectioTransport : public cSimpleModule
     typedef std::map<uint64_t, std::set<inet::L3Address>> FinishedMsgsMap;
     FinishedMsgsMap finishedMsgs;
 
-    double currentRtt = 2.0 * 1.6e-6;
+    double currentRtt = 2.5 * 2.0 * 1.6e-6;
 
     // max allowed inflight grant bytes per receiver
-    int allowedInFlightGrantedBytes = ((int)(2.0 * 1.6e-6 * 10e9 / 8.0));
+    int allowedInFlightGrantedBytes = ((int)(2.5 * 2.0 * 1.6e-6 * 10e9 / 8.0));
     int currentRcvInFlightGrantBytes = 0;
 
     typedef std::map<inet::L3Address,int> SenderInFlightGrantBytes;
@@ -225,6 +226,13 @@ class VectioTransport : public cSimpleModule
     SenderActiveGrantedMsg senderActiveGrantedMsg;
 
     int degOverComm = 4; 
+
+    std::queue<HomaPkt*> sendQueue;
+    bool sendQueueBusy;
+    int totalSendQueueSizeInBytes;
+    simtime_t sendQueueFreeTime;
+    double INFINITISIMALTIME = 1e-9;
+
 
     public:
       int grantSizeBytes = 1000;

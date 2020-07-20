@@ -70,6 +70,7 @@ class WorkloadSynthesizer : public cSimpleModule
     // states
     cMessage* selfMsg;
     inet::L3Address srcAddress;
+    int msgId;
     int sendMsgSize; // In bytes
     int nextDestHostId; // -1 means the destination must be chosen
                         // randomely based on config.xml information.

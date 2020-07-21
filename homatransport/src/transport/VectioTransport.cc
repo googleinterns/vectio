@@ -97,7 +97,7 @@ VectioTransport::initialize()
     }
 
     std::string LogFile2Name = std::string(
-                "results/tor.log");
+                "results/tor-test.log");
     if (!logFile2.is_open()) {
         logFile2.open(LogFile2Name);
     }
@@ -872,6 +872,25 @@ VectioTransport::processPendingMsgsToGrant(){
             scheduleAt(simTime() + trans_delay, outboundGrantQueueTimer);
             return;
         }
+        // update the last grant sent to sender time
+        auto itrGrantSent = lastGrantSentToSender.find(grntPkt->getDestAddr());
+        if(itrGrantSent == lastGrantSentToSender.end()){
+            lastGrantSentToSender.insert(std::pair<inet::L3Address,simtime_t>(grntPkt->getDestAddr(),simTime()));
+        }
+        else{
+            assert(itrGrantSent->second <= simTime());
+            itrGrantSent->second = simTime();
+        }
+        auto itrGrantedMsgs = grantedMsgsPerSender.find(grntPkt->getDestAddr());
+        if(itrGrantedMsgs == grantedMsgsPerSender.end()){
+            std::set<uint64_t> tempSet;
+            tempSet.clear();
+            tempSet.insert(grntPkt->getMsgId());
+            grantedMsgsPerSender.insert(std::pair<inet::L3Address,std::set<uint64_t>>(grntPkt->getDestAddr(), tempSet));
+        }
+        else{
+            itrGrantedMsgs->second.insert(grntPkt->getMsgId());
+        }
         if (grntPkt->getMsgId() == 288){
             logFile << simTime() << " sent grant pkt for msg: " 
             << grntPkt->getMsgId() << std::endl;
@@ -1053,6 +1072,34 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
             assert(senderInFlightGrantBytes.find(chosenSrcAddr) !=
             senderInFlightGrantBytes.end());
             auto senderBytesItr = senderInFlightGrantBytes.find(chosenSrcAddr);
+            
+            // if not heard from the chosen sender until the threshold time
+            // reset the senderInFlightBytes counter and the total bytes in flight counter
+            auto itrLastHeard = this->lastHeardFromSender.find(chosenSrcAddr);
+            auto itrLastGrant = this->lastGrantSentToSender.find(chosenSrcAddr);
+            if(itrLastHeard != this->lastHeardFromSender.end() &&
+            itrLastGrant != this->lastGrantSentToSender.end()){
+                simtime_t lastHeardTime = itrLastHeard->second;
+                simtime_t lastGrantTime = itrLastGrant->second;
+                if((lastGrantTime > lastHeardTime) &&
+                (senderBytesItr->second > 0)  && 
+                (simTime() - lastGrantTime >= this->lastHeardThreshold) &&
+                (simTime() - lastHeardTime >= this->lastHeardThreshold)){
+                    auto itrGrantedMsgs = this->grantedMsgsPerSender.find(chosenSrcAddr);
+                    assert(itrGrantedMsgs != this->grantedMsgsPerSender.end());
+                    if(itrGrantedMsgs->second.find(chosenMsgId) == itrGrantedMsgs->second.end()){
+                        this->extraGrantedBytes += senderBytesItr->second;
+                        currentRcvInFlightGrantBytes -= senderBytesItr->second;
+                        senderBytesItr->second = 0;
+                        assert(currentRcvInFlightGrantBytes >= 0);
+                        logFile << simTime() << " extra granted bytes for sender: " << chosenSrcAddr << " : " << this->extraGrantedBytes  << " chosen msg: " << chosenMsgId << std::endl;
+                        logFile.flush();
+                        assert(simTime() - lastHeardTime >= 0);
+                        itrLastHeard->second = simTime();
+                    }
+                }
+            }
+
             if (senderBytesItr->second > allowedInFlightGrantedBytes){
                 sendersToExclude.insert(chosenSrcAddr);
                 assignedPrio++;
@@ -1459,14 +1506,37 @@ VectioTransport::InboundMsg::appendPktData(HomaPkt* rxPkt)
         numBytesToRecv -= dataBytesInPkt;
 
         // update the in flight bytes
-        transport->currentRcvInFlightGrantBytes -= dataBytesInPkt;
-        assert(transport->currentRcvInFlightGrantBytes >= 0);
-
         assert(transport->senderInFlightGrantBytes.find(rxPkt->getSrcAddr()) !=
         transport->senderInFlightGrantBytes.end());
         auto itr = transport->senderInFlightGrantBytes.find(rxPkt->getSrcAddr());
-        itr->second -= dataBytesInPkt;
-        assert(itr->second >= 0);
+
+        if(itr->second >= dataBytesInPkt){
+            itr->second -= dataBytesInPkt;
+            assert(itr->second >= 0);
+            transport->currentRcvInFlightGrantBytes -= dataBytesInPkt;
+            assert(transport->currentRcvInFlightGrantBytes >= 0);
+        }
+        else{
+            // remove extra bytes from extra grants
+            int extraBytesToRemove = dataBytesInPkt - itr->second;
+            transport->currentRcvInFlightGrantBytes -= itr->second;
+            assert(transport->currentRcvInFlightGrantBytes >= 0);
+            itr->second = 0;
+            transport->extraGrantedBytes -= extraBytesToRemove;
+            assert(transport->extraGrantedBytes >= 0);
+        }
+
+        if(rxPkt->getPktType() == PktType::SCHED_DATA){
+            if(transport->lastHeardFromSender.find(rxPkt->getSrcAddr()) == transport->lastHeardFromSender.end() ){
+                transport->lastHeardFromSender.insert(std::pair<inet::L3Address,simtime_t>(rxPkt->getSrcAddr(),simTime()));
+            }
+            else{
+                auto itrLastHeard = transport->lastHeardFromSender.find(rxPkt->getSrcAddr());
+                assert(itrLastHeard->second <= simTime());
+                itrLastHeard->second = simTime();
+            }
+        }
+
         cModule* parentHost = this->transport->getParentModule();
         if (transport->logEvents && strcmp(parentHost->getName(),"nic") == 0 
         && parentHost->getIndex() == 0){

@@ -60,12 +60,9 @@ class VectioTransport : public cSimpleModule
     virtual void processMsgFromApp(AppMessage* sendMsg);
     virtual void processRcvdPkt(HomaPkt* rxPkt);
     virtual void processReqPkt(HomaPkt* rxPkt);
-    virtual void processGrantPkt(HomaPkt* rxPkt);
     virtual void processDataPkt(HomaPkt* rxPkt);
     virtual void processAckPkt(HomaPkt* rxPkt);
     virtual void processNackPkt(HomaPkt* rxPkt);
-    virtual void processInboundGrantQueue();
-    virtual void processOutboundGrantQueue();
     virtual void processPendingMsgsToGrant();
     virtual void processPendingMsgsToSend();
     virtual void processRetxTimer(TimerContext* timerContext);
@@ -232,6 +229,18 @@ class VectioTransport : public cSimpleModule
     int totalSendQueueSizeInBytes;
     simtime_t sendQueueFreeTime;
     double INFINITISIMALTIME = 1e-9;
+
+    int extraGrantedBytes = 0;
+    typedef std::map<inet::L3Address,simtime_t> LastHeardFromSender;
+    LastHeardFromSender lastHeardFromSender;
+
+    typedef std::map<inet::L3Address,simtime_t> LastGrantSentToSender;
+    LastGrantSentToSender lastGrantSentToSender;
+
+    typedef std::map<inet::L3Address,std::set<uint64_t>> GrantedMsgsPerSender;
+    GrantedMsgsPerSender grantedMsgsPerSender;
+
+    double lastHeardThreshold = 3.0 * 2.5 * 2.0 * 1.6e-6;//3RTT for now
 
 
     public:

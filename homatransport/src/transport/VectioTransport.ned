@@ -27,7 +27,7 @@ simple VectioTransport like ITransportScheme
         int localPort = default(-1);
         int destPort;
         int nicLinkSpeed @unit(Gbps) = default(10Gbps);
-        string logFile = default("output.log");
+        string logFile = default("output-test.log");
         bool logEvents = default(false);
 
     gates:

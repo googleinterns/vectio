@@ -13,7 +13,7 @@ class FctParser():
     returns throughputs and latencies for each server/message.
     """
 
-    def __init__(self, fctFile, numHosts, linkBw):
+    def __init__(self, fctFile, numHosts, linkBw, cdfFile):
         self.fctFile = fctFile
         self.numHosts = numHosts
         self.linkBw = linkBw
@@ -38,11 +38,21 @@ class FctParser():
         self.admitDelayFractions = []
         self.transportDelayFractions = []
         self.queueDelayFractions = []
+        self.cdfBinnedSlowdowns = {}
+        self.cdfKeys = []
         for i in range(10):
             self.binnedSlowdowns[i] = []
             self.binnedAdmitFractions[i] = []
             self.binnedTransportFractions[i] = []
             self.binnedQueueFractions[i] = []
+        with open(cdfFile) as f1:
+            f1.readline()
+            for line in f1:
+                numbersStr = line.split()
+                self.cdfKeys.append([int(numbersStr[0]),float(numbersStr[2])])
+            print(self.cdfKeys)
+        for i in range(len(self.cdfKeys)):
+            self.cdfBinnedSlowdowns[i] = []
         self.parse()
 
     def parse(self):
@@ -102,6 +112,14 @@ class FctParser():
             msgSize = self.msgSizes[i]
             key = int(np.log10(msgSize))
             self.binnedSlowdowns[key].append(self.slowdowns[i])
+            msgSizeInPkts = msgSize/1000
+            foundBin = 0
+            for l in range(len(self.cdfKeys)):
+                if(msgSizeInPkts <= self.cdfKeys[l][0]):
+                    self.cdfBinnedSlowdowns[l].append(self.slowdowns[i])
+                    foundBin = 1
+                    break
+            assert(foundBin == 1)
             # self.binnedAdmitFractions[key].append(self.admitDelayFractions[i])
             # self.binnedTransportFractions[key].append(self.transportDelayFractions[i])
             # self.binnedQueueFractions[key].append(self.queueDelayFractions[i])

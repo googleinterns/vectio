@@ -789,7 +789,7 @@ def main():
     if len(args) > 0:
         scalarResultFile = args[0]
     else:
-        scalarResultFile = '../homatransport/src/dcntopo/results/Vectio/InFileDist-2.sca'
+        scalarResultFile = '../homatransport/src/dcntopo/results/Vectio/InFileDist-5.sca'
 
     if len(args) > 1:
         xmlConfigFile = args[1]
@@ -799,7 +799,7 @@ def main():
     if len(args) > 2:
         fctFile = args[2]
     else:
-        fctFile = '../homatransport/src/dcntopo/results/fcts-flows-imc10-100K-0.75.txt'
+        fctFile = '../homatransport/src/dcntopo/results/fcts-test.txt'
     print(fctFile)
 
     # sp = ScalarParser(scalarResultFile)
@@ -826,7 +826,7 @@ def main():
     # printQueueLength(queueLen)
     # printQueueTimeStats(queueWaitTimeDigest, 'us')
 
-    fcts = FctParser(fctFile, 144, 10e9)
+    fcts = FctParser(fctFile, 144, 10e9, '../../workload_generator/CDF_aditya.txt')
     print("Throughput: mean: ", sum(fcts.throughputs)/len(fcts.throughputs), " median: ", percentile(fcts.throughputs,50), " 99%: ", percentile(fcts.throughputs,99))
     print("Inloads: mean: ", sum(fcts.inloads)/len(fcts.inloads), " median: ", percentile(fcts.inloads,50), " 99%: ", percentile(fcts.inloads,99))
     # print("Throughputs: ", fcts.throughputs)
@@ -857,6 +857,15 @@ def main():
             print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns), " mean slowdown: ", sum(slowdowns)/len(slowdowns), " 90%: ", percentile(slowdowns,90), " 99%: ", percentile(slowdowns,99), " max: ", max(slowdowns))
         else:
             print("Range(B): ", minSize, " - ", maxSize, ": num msgs: ", len(slowdowns))
+
+    print("Printing binned cdf slowdowns")
+    for i in range(len(fcts.cdfBinnedSlowdowns)):
+        pktSize = fcts.cdfKeys[i][0]
+        slowdowns = fcts.cdfBinnedSlowdowns[i]
+        if(len(slowdowns) > 0):
+            print("Range(B): ", pktSize, " - ", fcts.cdfKeys[i][1], ": num msgs: ", len(slowdowns), " mean slowdown: ", sum(slowdowns)/len(slowdowns), " 90%: ", percentile(slowdowns,90), " 99%: ", percentile(slowdowns,99), " max: ", max(slowdowns))
+        else:
+            print("Range(B): ", pktSize, " - ", fcts.cdfKeys[i][1], ": num msgs: ", len(slowdowns))
 
     # print("Printing delay fractions")
     # for i in range(len(fcts.binnedAdmitFractions)):

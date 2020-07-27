@@ -72,6 +72,9 @@ class VectioTransport : public cSimpleModule
     virtual HomaPkt* extractGrantPkt(const char* schedulingPolicy);
     virtual HomaPkt* extractDataPkt(const char* schedulingPolicy);
 
+    virtual double calculateTargetDelay(inet::L3Address srcAddr, inet::L3Address destAddr);
+    virtual void adjustWindSize(inet::L3Address srcAddr, int pktSize);
+
     /**
      * A self message essentially models a timer object for this transport and
      * can have one of the following types.
@@ -212,6 +215,11 @@ class VectioTransport : public cSimpleModule
 
     // max allowed inflight grant bytes per receiver
     int allowedInFlightGrantedBytes = ((int)(2.5 * 2.0 * 1.6e-6 * 10e9 / 8.0));
+    int allowedInFlightGrantedBytesIntraPod = ((int)(2.5 * 2.0 * 1.6e-6 * 10e9 / 8.0));
+
+    double baseRtt = 2.5 * 2.0 * 1.6e-6;
+    double baseRttIntraPod = 1.5 * 2.0 * 1.6e-6;
+
     int currentRcvInFlightGrantBytes = 0;
 
     typedef std::map<inet::L3Address,int> SenderInFlightGrantBytes;
@@ -241,6 +249,29 @@ class VectioTransport : public cSimpleModule
     GrantedMsgsPerSender grantedMsgsPerSender;
 
     double lastHeardThreshold = 3.0 * 2.5 * 2.0 * 1.6e-6;//3RTT for now
+
+    double ai = 1.0;
+    double md = 0.25;
+    int maxWindSize;
+    int minWindSize;
+    typedef std::map<inet::L3Address, double> RttPerSender;
+    RttPerSender currRttPerSender;
+    RttPerSender targetDelayPerSender;
+    typedef std::map<inet::L3Address, int> WindPerSender;
+    WindPerSender windPerSender;
+    typedef std::map<inet::L3Address, simtime_t> LastReducedWind;
+    LastReducedWind lastReducedWind;
+    double queueingDelayFactor = 2.0;
+
+    double edgeLinkDelay;
+    double fabricLinkDelay;
+    double hostSwTurnAroundTime;
+    double hostNicSxThinkTime;
+    double switchFixDelay;
+    double nicLinkSpeed;
+    double fabricLinkSpeed;
+    bool isFabricCutThrough;
+    bool isSingleSpeedFabric;
 
 
     public:

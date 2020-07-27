@@ -112,6 +112,19 @@ VectioTransport::initialize()
     sendQueueFreeTime = SIMTIME_ZERO;
     totalSendQueueSizeInBytes = 0;
 
+    maxWindSize = 1.1 * allowedInFlightGrantedBytes;
+    minWindSize = (int) (0.125 * ((double)(allowedInFlightGrantedBytes)));
+
+    nicLinkSpeed = par("nicLinkSpeed").longValue();
+    fabricLinkSpeed = par("fabricLinkSpeed").longValue();
+    edgeLinkDelay = 1e-6 * par("edgeLinkDelay").doubleValue();
+    fabricLinkDelay = 1e-6 * par("fabricLinkDelay").doubleValue();
+    hostSwTurnAroundTime = 1e-6 * par("hostSwTurnAroundTime").doubleValue();
+    hostNicSxThinkTime = 1e-6 * par("hostNicSxThinkTime").doubleValue();
+    switchFixDelay = 1e-6 * par("switchFixDelay").doubleValue();
+    isFabricCutThrough = par("isFabricCutThrough").boolValue();
+    isSingleSpeedFabric = par("isSingleSpeedFabric").boolValue();
+
     srand(1);
 }
 
@@ -425,9 +438,49 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
     }
 
     //update the rtt
-    if (rxPkt->getSrcAddr().toIPv4().getDByte(2) != 
-        rxPkt->getDestAddr().toIPv4().getDByte(2)) {
+    // if (rxPkt->getSrcAddr().toIPv4().getDByte(2) != 
+    //     rxPkt->getDestAddr().toIPv4().getDByte(2)) {
+    //         currentRtt = ((simTime() - rxPkt->getTimestamp()).dbl() * 2.0);
+    //         assert(currentRtt > 0);
+    //         // allowedInFlightGrantedBytes = ((int)(currentRtt * nicBandwidth / 8.0));
+    //         logFile << simTime() << " updated rtt: " << currentRtt << " " << allowedInFlightGrantedBytes << " " << currentRcvInFlightGrantBytes << std::endl;
+    // }
+    currentRtt = ((simTime() - rxPkt->getTimestamp()).dbl() * 2.0);
+    auto currRttItr = currRttPerSender.find(rxPkt->getSrcAddr());
+    if(currRttItr == currRttPerSender.end()){
+        currRttPerSender.insert(std::pair<inet::L3Address,double>(rxPkt->getSrcAddr(),currentRtt));
+        assert(targetDelayPerSender.find(rxPkt->getSrcAddr()) == targetDelayPerSender.end());
+        targetDelayPerSender.insert(std::pair<inet::L3Address,double>(rxPkt->getSrcAddr(),calculateTargetDelay(rxPkt->getSrcAddr(),rxPkt->getDestAddr())));
+        assert(windPerSender.find(rxPkt->getSrcAddr()) == windPerSender.end());
+        if(rxPkt->getSrcAddr().toIPv4().getDByte(2) == rxPkt->getDestAddr().toIPv4().getDByte(2)){
+            windPerSender.insert(std::pair<inet::L3Address, int>(rxPkt->getSrcAddr(), allowedInFlightGrantedBytesIntraPod));
+        }
+        else{
+            windPerSender.insert(std::pair<inet::L3Address, int>(rxPkt->getSrcAddr(), allowedInFlightGrantedBytes));
+        }
     }
+    else{
+        currRttItr->second = currentRtt;
+        logFile << simTime() << " currRtt: " << currentRtt << " target: " << targetDelayPerSender.find(rxPkt->getSrcAddr())->second << std::endl; 
+        assert(targetDelayPerSender.find(rxPkt->getSrcAddr()) != targetDelayPerSender.end());
+    }
+
+    int pktSize = 0;
+    if(rxPkt->getPktType() == PktType::UNSCHED_DATA){
+        pktSize = rxPkt->getUnschedFields().lastByte - rxPkt->getUnschedFields().firstByte + 1;
+    }
+    else if(rxPkt->getPktType() == PktType::SCHED_DATA){
+        pktSize = rxPkt->getSchedDataFields().lastByte - rxPkt->getSchedDataFields().firstByte + 1;
+    }
+    else{
+        assert(false);
+    }
+    assert(pktSize > 0);
+
+    adjustWindSize(rxPkt->getSrcAddr(), pktSize);
+
+    // logFile << simTime() << " updated rtt: " << currentRtt << " target: " << 2.0 * calculateTargetDelay(rxPkt->getSrcAddr(),rxPkt->getDestAddr()) << " same tor: " << (rxPkt->getSrcAddr().toIPv4().getDByte(2) == rxPkt->getDestAddr().toIPv4().getDByte(2)) 
+    // << " " << currentRcvInFlightGrantBytes << std::endl;
     //////////// TESTING PKT DROPS /////////////////
     // int dropPkt = rand() % 20;
     // if (dropPkt == 0){
@@ -1100,14 +1153,17 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
                 }
             }
 
-            if (senderBytesItr->second > allowedInFlightGrantedBytes){
+            assert(windPerSender.find(chosenSrcAddr) != windPerSender.end());
+            logFile << simTime() << " cur wind here: " << windPerSender.find(chosenSrcAddr)->second << std::endl;
+
+            if (senderBytesItr->second > windPerSender.find(chosenSrcAddr)->second){
                 sendersToExclude.insert(chosenSrcAddr);
                 assignedPrio++;
                 if (logEvents && strcmp(parentHost->getName(),"nic") == 0 && 
                 parentHost->getIndex() == 0){
                     logFile << "Excluding sender: " << chosenSrcAddr 
                     << " sender bytes: " << senderBytesItr->second
-                     << " allowed: " << allowedInFlightGrantedBytes << std::endl;
+                     << " allowed window: " << windPerSender.find(chosenSrcAddr)->second << std::endl;
                 }
             }
             else{
@@ -1234,6 +1290,7 @@ VectioTransport::processSendQueue(){
         HomaPkt* sxPkt = sendQueue.front();
         sendQueue.pop();
         int pktBytes = 0;
+        sxPkt->setTimestamp(simTime());
         if (sxPkt->getPktType() == PktType::UNSCHED_DATA){
             pktBytes = sxPkt->getUnschedFields().lastByte - sxPkt->getUnschedFields().firstByte + 1;
         }
@@ -1556,4 +1613,185 @@ VectioTransport::InboundMsg::appendPktData(HomaPkt* rxPkt)
     } else {
         return false;
     }
+}
+
+double
+VectioTransport::calculateTargetDelay(inet::L3Address sAddr, inet::L3Address dAddr){
+    int totalBytesTranmitted = 0;
+    inet::L3Address srcAddr = sAddr;
+    ASSERT(srcAddr.getType() == inet::L3Address::AddressType::IPv4);
+    inet::L3Address destAddr = dAddr;
+    ASSERT(destAddr.getType() == inet::L3Address::AddressType::IPv4);
+
+    if (destAddr == srcAddr) {
+        // no switching delay
+        return totalBytesTranmitted;
+    }
+
+    // calculate the total transmitted bytes in the the network for this
+    // rcvdMsg. These bytes include all headers and ethernet overhead bytes per
+    // frame.
+    int lastPartialFrameLen = 0;
+    int numFullEthFrame = 1;
+    uint32_t lastPartialFrameData =
+            0;
+
+    totalBytesTranmitted = numFullEthFrame *
+            (grantSizeBytes + 100 + ETHERNET_HDR_SIZE +
+            ETHERNET_CRC_SIZE + ETHERNET_PREAMBLE_SIZE + INTER_PKT_GAP);
+
+    if (lastPartialFrameData == 0) {
+        if (numFullEthFrame == 0) {
+            totalBytesTranmitted = MIN_ETHERNET_FRAME_SIZE +
+                    ETHERNET_PREAMBLE_SIZE + INTER_PKT_GAP;
+            lastPartialFrameLen = totalBytesTranmitted;
+        }
+
+    } else {
+        if (lastPartialFrameData < (MIN_ETHERNET_PAYLOAD_BYTES -
+                IP_HEADER_SIZE - UDP_HEADER_SIZE)) {
+            lastPartialFrameLen = MIN_ETHERNET_FRAME_SIZE +
+                    ETHERNET_PREAMBLE_SIZE + INTER_PKT_GAP;
+        } else {
+            lastPartialFrameLen = lastPartialFrameData + IP_HEADER_SIZE
+                    + UDP_HEADER_SIZE + ETHERNET_HDR_SIZE + ETHERNET_CRC_SIZE
+                    + ETHERNET_PREAMBLE_SIZE + INTER_PKT_GAP;
+        }
+        totalBytesTranmitted += lastPartialFrameLen;
+    }
+
+    double msgSerializationDelay =
+            1e-9 * ((totalBytesTranmitted << 3) * 1.0 / nicLinkSpeed);
+    // logFile << " total bytes: " << totalBytesTranmitted << " " <<  " msgdelay: " << msgSerializationDelay << std::endl;
+
+    // There's always two hostSwTurnAroundTime and one nicThinkTime involved
+    // in ideal latency for the overhead.
+    double hostDelayOverheads = 2 * hostSwTurnAroundTime + hostNicSxThinkTime;
+    // logFile << " hostdelay: " << hostDelayOverheads << std::endl;
+
+    // Depending on if the switch model is store-forward (omnet++ default model)
+    // or cutthrough (as we implemented), the switch serialization delay would
+    // be different. The code snipet below finds how many switch a packet passes
+    // through and adds the correct switch delay to total delay based on the
+    // switch model.
+    double totalSwitchDelay = 0;
+
+    double edgeSwitchFixDelay = switchFixDelay;
+    double fabricSwitchFixDelay = switchFixDelay;
+    double edgeSwitchSerialDelay = 0;
+    double fabricSwitchSerialDelay = 0;
+
+    if (numFullEthFrame != 0) {
+        edgeSwitchSerialDelay +=
+                (grantSizeBytes + 100 + ETHERNET_HDR_SIZE +
+                ETHERNET_CRC_SIZE + ETHERNET_PREAMBLE_SIZE + INTER_PKT_GAP) *
+                1e-9 * 8 / nicLinkSpeed;
+
+        fabricSwitchSerialDelay += (grantSizeBytes + 100 +
+                ETHERNET_HDR_SIZE + ETHERNET_CRC_SIZE + ETHERNET_PREAMBLE_SIZE +
+                INTER_PKT_GAP) * 1e-9 * 8 / fabricLinkSpeed;
+    } else {
+        edgeSwitchSerialDelay += lastPartialFrameLen * 1e-9 * 8 / nicLinkSpeed;
+        fabricSwitchSerialDelay +=
+                lastPartialFrameLen * 1e-9 * 8 / fabricLinkSpeed;
+    }
+
+    if (destAddr.toIPv4().getDByte(2) == srcAddr.toIPv4().getDByte(2)) {
+
+        // src and dest in the same rack
+        totalSwitchDelay = edgeSwitchFixDelay;
+        if (!isFabricCutThrough) {
+            totalSwitchDelay =+ edgeSwitchSerialDelay;
+        }
+
+        // Add 2 edge link delays
+        totalSwitchDelay += (2 * edgeLinkDelay);
+        // logFile << " switchdelay1: " << totalSwitchDelay << std::endl;
+
+    } else if (destAddr.toIPv4().getDByte(1) == srcAddr.toIPv4().getDByte(1)) {
+
+        // src and dest in the same pod
+        totalSwitchDelay =
+                edgeSwitchFixDelay +  fabricSwitchFixDelay + edgeSwitchFixDelay;
+        if (!isFabricCutThrough) {
+            totalSwitchDelay +=
+                    (2*fabricSwitchSerialDelay + edgeSwitchSerialDelay);
+        } else if (!isSingleSpeedFabric) {
+            // have cutthrough but forwarding a packet coming from low
+            // speed port to high speed port. There will inevitably be one
+            // serialization at low speed.
+            totalSwitchDelay += edgeSwitchSerialDelay;
+        }
+
+        // Add 2 edge link delays and two fabric link delays
+        totalSwitchDelay += (2 * edgeLinkDelay + 2 * fabricLinkDelay);
+        // logFile << " switchdelay2: " << totalSwitchDelay << std::endl;
+
+
+    } else {
+        totalSwitchDelay = edgeSwitchFixDelay +
+                           fabricSwitchFixDelay +
+                           fabricSwitchFixDelay +
+                           fabricSwitchFixDelay +
+                           edgeSwitchFixDelay;
+        if (!isFabricCutThrough) {
+            totalSwitchDelay += (fabricSwitchSerialDelay +
+                    fabricSwitchSerialDelay + fabricSwitchSerialDelay +
+                    fabricSwitchSerialDelay + edgeSwitchSerialDelay);
+        } else if (!isSingleSpeedFabric) {
+
+            totalSwitchDelay += edgeSwitchFixDelay;
+        }
+
+        // Add 2 edge link delays and 4 fabric link delays
+        totalSwitchDelay += (2 * edgeLinkDelay + 4 * fabricLinkDelay);
+        // logFile << " switchdelay3: " << totalSwitchDelay << std::endl;
+
+    }
+
+
+    return queueingDelayFactor * 2 * (msgSerializationDelay + totalSwitchDelay + hostDelayOverheads);
+}
+
+void
+VectioTransport::adjustWindSize(inet::L3Address sAddr, int pktSize){
+    // implement the congestion control logic here
+
+    assert(currRttPerSender.find(sAddr) != currRttPerSender.end());
+    double currRtt = currRttPerSender.find(sAddr)->second;
+    assert(targetDelayPerSender.find(sAddr) != targetDelayPerSender.end());
+    double targetDelay = targetDelayPerSender.find(sAddr)->second;
+    assert(windPerSender.find(sAddr) != windPerSender.end());
+    auto curWind = windPerSender.find(sAddr)->second;
+    int newWind = curWind;
+
+    if(currRtt < targetDelay){
+        newWind = curWind + ((int)(((double)(ai) * (double)(pktSize))));
+        newWind = std::min(maxWindSize, newWind);
+        logFile << simTime() << " cur wind: " << curWind << " increased cwnd: " << newWind << " max: " << maxWindSize << std::endl;
+    }
+    else{
+        double redFactor = (md * ((currRtt/targetDelay) - 1));
+        newWind = (int)(((double)(curWind)) *  (1.0 - redFactor));
+        newWind = std::max(minWindSize, newWind);
+        assert(newWind <= curWind);
+        // window only reduced once per RTT
+        if(lastReducedWind.find(sAddr) == lastReducedWind.end()){
+            lastReducedWind.insert(std::pair<inet::L3Address,simtime_t>(sAddr,simTime()));
+            logFile << simTime() << " reduced1 cwnd: " << newWind << std::endl;
+        }
+        else{
+            auto lastReducedTime = lastReducedWind.find(sAddr)->second;
+            assert(simTime().dbl() - lastReducedTime.dbl() >= 0);
+            if(simTime().dbl() - lastReducedTime.dbl() < baseRtt){
+                newWind = curWind;
+                //not changed in this case
+            }
+            else{
+                lastReducedWind.find(sAddr)->second = simTime();
+                logFile << simTime() << " reduced2 cwnd: " << newWind << std::endl;
+            } 
+        }
+    }
+    windPerSender.find(sAddr)->second = newWind;
 }

@@ -42,3 +42,6 @@ xxx
 /3rdparty
 /tmp/
 **/.dep/
+
+*.txt
+*.pyc

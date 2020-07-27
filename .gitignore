@@ -2,3 +2,4 @@ omnetpp-*/*
 omnetpp-*
 .vscode*
 .vscode/*
+*.pyc

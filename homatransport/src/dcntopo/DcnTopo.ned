@@ -125,8 +125,8 @@ network DcnTopo
             hostSwTurnAroundTime = hostSwTurnAroundTime;
             hostNicSxThinkTime = hostNicSxThinkTime;
             switchFixDelay = switchFixDelay;
-            trafficGeneratorApp[*].isFabricCutThrough = isFabricCutThrough;
-            trafficGeneratorApp[*].isSingleSpeedFabric = (nicLinkSpeed == fabricLinkSpeed);
+            isFabricCutThrough = isFabricCutThrough;
+            isSingleSpeedFabric = (nicLinkSpeed == fabricLinkSpeed);
         }
 
         app[numHosts]: AppmasterBase {

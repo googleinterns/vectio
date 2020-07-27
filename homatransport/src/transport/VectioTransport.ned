@@ -27,8 +27,18 @@ simple VectioTransport like ITransportScheme
         int localPort = default(-1);
         int destPort;
         int nicLinkSpeed @unit(Gbps) = default(10Gbps);
+        int fabricLinkSpeed @unit(Gbps) = default(10Gbps);
         string logFile = default("output-test.log");
         bool logEvents = default(false);
+
+        double edgeLinkDelay @unit(us);
+        double fabricLinkDelay @unit(us);
+        double hostSwTurnAroundTime @unit(us);
+        double hostNicSxThinkTime @unit(us);
+        double switchFixDelay @unit(us);
+
+        bool isFabricCutThrough;
+        bool isSingleSpeedFabric;
 
     gates:
         input appIn[] @labels(AppMessage/down);

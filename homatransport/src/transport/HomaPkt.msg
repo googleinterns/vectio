@@ -93,4 +93,5 @@ packet HomaPkt {
     UnschedFields unschedFields;    // Used for both request and unsched
     GrantFields grantFields;            // Used only for grants
     SchedDataFields schedDataFields;    // Used only for scheduled data
+    double delay;
 }

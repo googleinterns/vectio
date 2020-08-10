@@ -431,7 +431,8 @@ VectioSenderTransport::processAckPkt(HomaPkt* rxPkt)
         }
     }
 
-    currentRtt = ((simTime() - rxPkt->getTimestamp()).dbl() * 2.0);
+    currentRtt = (rxPkt->getDelay()) * 2.0;
+    // logFile << simTime() << " observed delay: " << rxPkt->getDelay() << std::endl;
     auto currRttItr = currRttPerReceiver.find(rxPkt->getSrcAddr());
     if(currRttItr == currRttPerReceiver.end()){
         currRttPerReceiver.insert(std::pair<inet::L3Address,double>(rxPkt->getSrcAddr(),currentRtt));
@@ -495,6 +496,7 @@ VectioSenderTransport::processNackPkt(HomaPkt* rxPkt)
         schedFields.lastByte = lastByte;
         resendDataPkt->setSchedDataFields(schedFields);
         resendDataPkt->setPriority(2);
+        resendDataPkt->setTimestamp(simTime());
         socket.sendTo(resendDataPkt, resendDataPkt->getDestAddr(),destPort);
         if (logEvents) {
         logFile << simTime() << " Resent pkt: " << firstByte 
@@ -535,6 +537,7 @@ VectioSenderTransport::processPendingMsgsToSend(){
                 else {
                     assert(false);
                 }
+                dataPkt->setTimestamp(simTime());
                 sendQueue.push(dataPkt);
                 assert(sendQueueFreeTime <= simTime());
                 sendQueueFreeTime = simTime() + ((pktByteLen + 100) * 8.0 / nicBandwidth);
@@ -1063,6 +1066,7 @@ VectioSenderTransport::InboundMsg::appendPktData(HomaPkt* rxPkt)
     }
 
     if (!isPktDuplicate) {
+        double delay = simTime().dbl() - rxPkt->getTimestamp().dbl();
         numBytesToRecv -= dataBytesInPkt;
 
         // send the ACK here
@@ -1087,12 +1091,14 @@ VectioSenderTransport::InboundMsg::appendPktData(HomaPkt* rxPkt)
         if (transport->sendQueueBusy == false){
             transport->sendQueueFreeTime = simTime() + ((ackPkt->getByteLength() + 100) * 8.0 
             / transport->nicBandwidth);
-            ackPkt->setTimestamp(simTime());
+            ackPkt->setDelay(delay);
+            // logFile << simTime() << " setting delay: " << delay << std::endl;
         }
         else{
             transport->sendQueueFreeTime = transport->sendQueueFreeTime + ((ackPkt->getByteLength() + 100)
              * 8.0 / transport->nicBandwidth);
-            ackPkt->setTimestamp(transport->sendQueueFreeTime);
+            ackPkt->setDelay(delay);
+            // logFile << simTime() << " setting delay: " << delay << std::endl;
         }
         transport->sendQueue.push(ackPkt);
 
@@ -1262,6 +1268,8 @@ VectioSenderTransport::adjustWindSize(inet::L3Address dAddr, int pktSize){
     auto curWind = windPerDest.find(dAddr)->second;
     int newWind = curWind;
 
+    // logFile << simTime() << " cur wind: " << curWind  << " dAddr: " << dAddr << " curr rtt: " << currRtt << " targetdelay: " << targetDelay << std::endl;
+
     if(currRtt < targetDelay){
         newWind = curWind + ((int)(((double)(ai) * (double)(pktSize))));
         newWind = std::min(maxWindSize, newWind);
@@ -1291,4 +1299,5 @@ VectioSenderTransport::adjustWindSize(inet::L3Address dAddr, int pktSize){
         }
     }
     windPerDest.find(dAddr)->second = newWind;
+    // logFile << simTime() << " new wind: " << newWind << " " << windPerDest.find(dAddr)->second << " " << this->srcAddress << std::endl;
 }

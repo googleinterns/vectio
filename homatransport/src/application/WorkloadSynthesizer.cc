@@ -236,7 +236,7 @@ WorkloadSynthesizer::initialize()
         distSelector =
                 MsgSizeDistributions::DistributionChoice::SIZE_IN_FILE;
         distFileName = std::string(
-                "../../sizeDistributions/flows-imc10-100k-0.75.txt");
+                "../../sizeDistributions/HostidSizeInterarrival-test.txt");
     } else {
         throw cRuntimeError("'%s': Not a valie workload type.",workLoadType);
     }

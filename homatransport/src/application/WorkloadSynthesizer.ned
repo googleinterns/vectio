@@ -45,7 +45,7 @@ simple WorkloadSynthesizer like ITrafficGeneratorApp
         string workloadType = default("DCTCP");
         string interArrivalDist = default("exponential");
         string destAddresses = default("");
-        string resultFile = default("fcts-test.txt");
+        string resultFile = default("test.txt");
         double startTime @unit(s) = default(0s);
         double stopTime @unit(s) = default(-1s);
         @display("i=block/app");

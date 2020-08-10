@@ -41,6 +41,9 @@ void DropTailQueue::initialize()
     // Configure the HomaPkt priority sort function
     if (par("transportType").stdstringValue() == "VectioTransport") {
         queue.setup(&HomaPkt::comparePrios);
+    }
+    else if (par("transportType").stdstringValue() == "VectioSenderTransport") {
+        queue.setup(&HomaPkt::comparePrios);
     } else if (par("transportType").stdstringValue() == "PseudoIdealTransport") {
         queue.setup(&HomaPkt::compareSizeAndPrios);
     } else {

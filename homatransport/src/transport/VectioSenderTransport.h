@@ -74,6 +74,7 @@ class VectioSenderTransport : public cSimpleModule
 
     virtual double calculateTargetDelay(inet::L3Address srcAddr, inet::L3Address destAddr);
     virtual void adjustWindSize(inet::L3Address srcAddr, int pktSize);
+    virtual double calculateBaseRtt();
 
     /**
      * A self message essentially models a timer object for this transport and

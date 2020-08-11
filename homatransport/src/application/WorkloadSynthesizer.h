@@ -103,6 +103,9 @@ class WorkloadSynthesizer : public cSimpleModule
     // consumer of the object.
     static simsignal_t mesgStatsSignal;
 
+    std::string outputFileName;
+    std::string workloadFileName;
+
   protected:
     virtual void initialize();
     virtual void handleMessage(cMessage* msg);

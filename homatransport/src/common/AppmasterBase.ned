@@ -51,6 +51,9 @@ module AppmasterBase
         double hostSwTurnAroundTime @unit(us);
         double hostNicSxThinkTime @unit(us);
         double switchFixDelay @unit(us);
+
+        string outputFileName;
+        string workloadFileName;
     gates:
         input pcieIn;
         output pcieOut;
@@ -68,6 +71,9 @@ module AppmasterBase
                 hostSwTurnAroundTime = hostSwTurnAroundTime;
                 hostNicSxThinkTime = hostNicSxThinkTime;
                 switchFixDelay = switchFixDelay;
+
+                outputFileName = outputFileName;
+                workloadFileName = workloadFileName;
         }
 
         udpApp[numUdpApps]: <> like IUDPApp {

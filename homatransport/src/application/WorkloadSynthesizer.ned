@@ -41,6 +41,9 @@ simple WorkloadSynthesizer like ITrafficGeneratorApp
         bool isSingleSpeedFabric;
         double loadFactor;
 
+        string outputFileName;
+        string workloadFileName;
+
         // workload types from this set: {"DCTCP", "FACEBOOK_KEY_VALUE"}
         string workloadType = default("DCTCP");
         string interArrivalDist = default("exponential");

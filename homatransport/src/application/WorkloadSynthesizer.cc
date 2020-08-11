@@ -149,10 +149,11 @@ WorkloadSynthesizer::initialize()
     xmlConfig = par("appConfig").xmlValue();
     const char* resultsDir = "results/";
     std::string OutputFileName = std::string(
-                resultsDir) + std::string(par("resultFile").stringValue());
+                resultsDir) + std::string(par("outputFileName").stringValue());
     if(!outputFile.is_open()) {
         outputFile.open(OutputFileName);
     }
+    // std::string WorkloadFileName = std::string(par("workloadFileName").stringValue());
 
     // Setup templated statistics ans signals
     const char* msgSizeRanges = par("msgSizeRanges").stringValue();
@@ -235,8 +236,8 @@ WorkloadSynthesizer::initialize()
     } else if (strcmp(workLoadType, "PRESET_IN_FILE") == 0){
         distSelector =
                 MsgSizeDistributions::DistributionChoice::SIZE_IN_FILE;
-        distFileName = std::string(
-                "../../sizeDistributions/HostidSizeInterarrival-test.txt");
+        distFileName = std::string("../../sizeDistributions/") 
+        + std::string(par("workloadFileName").stringValue());
     } else {
         throw cRuntimeError("'%s': Not a valie workload type.",workLoadType);
     }

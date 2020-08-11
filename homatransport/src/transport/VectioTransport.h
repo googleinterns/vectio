@@ -74,6 +74,7 @@ class VectioTransport : public cSimpleModule
 
     virtual double calculateTargetDelay(inet::L3Address srcAddr, inet::L3Address destAddr);
     virtual void adjustWindSize(inet::L3Address srcAddr, int pktSize);
+    virtual double calculateBaseRtt();
 
     /**
      * A self message essentially models a timer object for this transport and
@@ -230,7 +231,7 @@ class VectioTransport : public cSimpleModule
     typedef std::map<inet::L3Address,std::pair<uint64_t,int>> SenderActiveGrantedMsg;
     SenderActiveGrantedMsg senderActiveGrantedMsg;
 
-    int degOverComm = 4; 
+    int degOverComm = 8; 
 
     std::queue<HomaPkt*> sendQueue;
     bool sendQueueBusy;

@@ -57,6 +57,10 @@ module NicBase extends NodeBase
 
         bool isFabricCutThrough;
         bool isSingleSpeedFabric;
+
+        int degOverComm;
+        string logFile;
+        string switchLogFile;
     gates:
         input pcieIn;
         output pcieOut;
@@ -75,6 +79,9 @@ module NicBase extends NodeBase
                 switchFixDelay = switchFixDelay;
                 isFabricCutThrough = isFabricCutThrough;
                 isSingleSpeedFabric = isSingleSpeedFabric;
+                degOverComm = degOverComm;
+                logFile = logFile;
+                switchLogFile = switchLogFile;
         }
 
         udp: <udpType> like IUDP if hasUdp {

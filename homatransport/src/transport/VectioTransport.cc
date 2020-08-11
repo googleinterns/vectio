@@ -97,7 +97,7 @@ VectioTransport::initialize()
     }
 
     std::string LogFile2Name = std::string(
-                "results/tor-test.log");
+                "results/") + std::string(par("switchLogFile").stringValue());
     if (!logFile2.is_open()) {
         logFile2.open(LogFile2Name);
     }
@@ -112,9 +112,6 @@ VectioTransport::initialize()
     sendQueueFreeTime = SIMTIME_ZERO;
     totalSendQueueSizeInBytes = 0;
 
-    maxWindSize = 1.1 * allowedInFlightGrantedBytes;
-    minWindSize = (int) (0.125 * ((double)(allowedInFlightGrantedBytes)));
-
     nicLinkSpeed = par("nicLinkSpeed").longValue();
     fabricLinkSpeed = par("fabricLinkSpeed").longValue();
     edgeLinkDelay = 1e-6 * par("edgeLinkDelay").doubleValue();
@@ -124,6 +121,20 @@ VectioTransport::initialize()
     switchFixDelay = 1e-6 * par("switchFixDelay").doubleValue();
     isFabricCutThrough = par("isFabricCutThrough").boolValue();
     isSingleSpeedFabric = par("isSingleSpeedFabric").boolValue();
+    degOverComm = par("degOverComm").longValue();
+
+    baseRtt = calculateBaseRtt();
+    baseRttIntraPod = baseRtt;
+
+    allowedInFlightGrantedBytes = ((int)(baseRtt * nicBandwidth / 8.0));
+    allowedInFlightGrantedBytesIntraPod = ((int)(baseRttIntraPod * nicBandwidth / 8.0));
+
+    freeGrantSize = (allowedInFlightGrantedBytes/grantSizeBytes) * grantSizeBytes;
+
+    maxWindSize = 1.1 * allowedInFlightGrantedBytes;
+    minWindSize = (int) (0.125 * ((double)(allowedInFlightGrantedBytes)));
+
+    logFile << " freegrantsize: " << freeGrantSize << std::endl;
 
     srand(1);
 }
@@ -429,13 +440,13 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
 void
 VectioTransport::processDataPkt(HomaPkt* rxPkt)
 {
-    if (logEvents && rxPkt->getMsgId() == 288) {
+    // if (logEvents && rxPkt->getMsgId() == 288) {
         logFile << simTime() << " Received data pkt for msg: " 
         << rxPkt->getMsgId() << " at the receiver: " << rxPkt->getDestAddr() 
         << " size: " << rxPkt->getDataBytes() << " scheduled at: " 
         << std::endl;
         logFile.flush();
-    }
+    // }
 
     //update the rtt
     // if (rxPkt->getSrcAddr().toIPv4().getDByte(2) != 
@@ -1146,8 +1157,8 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
                         currentRcvInFlightGrantBytes -= senderBytesItr->second;
                         senderBytesItr->second = 0;
                         assert(currentRcvInFlightGrantBytes >= 0);
-                        logFile << simTime() << " extra granted bytes for sender: " << chosenSrcAddr << " : " << this->extraGrantedBytes  << " chosen msg: " << chosenMsgId << std::endl;
-                        logFile.flush();
+                        // logFile << simTime() << " extra granted bytes for sender: " << chosenSrcAddr << " : " << this->extraGrantedBytes  << " chosen msg: " << chosenMsgId << std::endl;
+                        // logFile.flush();
                         assert(simTime() - lastHeardTime >= 0);
                         itrLastHeard->second = simTime();
                     }
@@ -1155,7 +1166,7 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
             }
 
             assert(windPerSender.find(chosenSrcAddr) != windPerSender.end());
-            logFile << simTime() << " cur wind here: " << windPerSender.find(chosenSrcAddr)->second << std::endl;
+            // logFile << simTime() << " cur wind here: " << windPerSender.find(chosenSrcAddr)->second << std::endl;
 
             if (senderBytesItr->second > windPerSender.find(chosenSrcAddr)->second){
                 sendersToExclude.insert(chosenSrcAddr);
@@ -1795,4 +1806,100 @@ VectioTransport::adjustWindSize(inet::L3Address sAddr, int pktSize){
         }
     }
     windPerSender.find(sAddr)->second = newWind;
+}
+
+double
+VectioTransport::calculateBaseRtt(){
+    int totalBytesTranmitted = 0;
+
+    // calculate the total transmitted bytes in the the network for this
+    // rcvdMsg. These bytes include all headers and ethernet overhead bytes per
+    // frame.
+    int lastPartialFrameLen = 0;
+    int numFullEthFrame = 1;
+    uint32_t lastPartialFrameData =
+            0;
+
+    totalBytesTranmitted = numFullEthFrame *
+            (grantSizeBytes + 100 + ETHERNET_HDR_SIZE +
+            ETHERNET_CRC_SIZE + ETHERNET_PREAMBLE_SIZE + INTER_PKT_GAP);
+
+    if (lastPartialFrameData == 0) {
+        if (numFullEthFrame == 0) {
+            totalBytesTranmitted = MIN_ETHERNET_FRAME_SIZE +
+                    ETHERNET_PREAMBLE_SIZE + INTER_PKT_GAP;
+            lastPartialFrameLen = totalBytesTranmitted;
+        }
+
+    } else {
+        if (lastPartialFrameData < (MIN_ETHERNET_PAYLOAD_BYTES -
+                IP_HEADER_SIZE - UDP_HEADER_SIZE)) {
+            lastPartialFrameLen = MIN_ETHERNET_FRAME_SIZE +
+                    ETHERNET_PREAMBLE_SIZE + INTER_PKT_GAP;
+        } else {
+            lastPartialFrameLen = lastPartialFrameData + IP_HEADER_SIZE
+                    + UDP_HEADER_SIZE + ETHERNET_HDR_SIZE + ETHERNET_CRC_SIZE
+                    + ETHERNET_PREAMBLE_SIZE + INTER_PKT_GAP;
+        }
+        totalBytesTranmitted += lastPartialFrameLen;
+    }
+
+    double msgSerializationDelay =
+            1e-9 * ((totalBytesTranmitted << 3) * 1.0 / nicLinkSpeed);
+    // logFile << " total bytes: " << totalBytesTranmitted << " " <<  " msgdelay: " << msgSerializationDelay << std::endl;
+
+    // There's always two hostSwTurnAroundTime and one nicThinkTime involved
+    // in ideal latency for the overhead.
+    double hostDelayOverheads = 2 * hostSwTurnAroundTime + hostNicSxThinkTime;
+    // logFile << " hostdelay: " << hostDelayOverheads << std::endl;
+
+    // Depending on if the switch model is store-forward (omnet++ default model)
+    // or cutthrough (as we implemented), the switch serialization delay would
+    // be different. The code snipet below finds how many switch a packet passes
+    // through and adds the correct switch delay to total delay based on the
+    // switch model.
+    double totalSwitchDelay = 0;
+
+    double edgeSwitchFixDelay = switchFixDelay;
+    double fabricSwitchFixDelay = switchFixDelay;
+    double edgeSwitchSerialDelay = 0;
+    double fabricSwitchSerialDelay = 0;
+
+    if (numFullEthFrame != 0) {
+        edgeSwitchSerialDelay +=
+                (grantSizeBytes + 100 + ETHERNET_HDR_SIZE +
+                ETHERNET_CRC_SIZE + ETHERNET_PREAMBLE_SIZE + INTER_PKT_GAP) *
+                1e-9 * 8 / nicLinkSpeed;
+
+        fabricSwitchSerialDelay += (grantSizeBytes + 100 +
+                ETHERNET_HDR_SIZE + ETHERNET_CRC_SIZE + ETHERNET_PREAMBLE_SIZE +
+                INTER_PKT_GAP) * 1e-9 * 8 / fabricLinkSpeed;
+    } else {
+        edgeSwitchSerialDelay += lastPartialFrameLen * 1e-9 * 8 / nicLinkSpeed;
+        fabricSwitchSerialDelay +=
+                lastPartialFrameLen * 1e-9 * 8 / fabricLinkSpeed;
+    }
+
+    
+    totalSwitchDelay = edgeSwitchFixDelay +
+                        fabricSwitchFixDelay +
+                        fabricSwitchFixDelay +
+                        fabricSwitchFixDelay +
+                        edgeSwitchFixDelay;
+    if (!isFabricCutThrough) {
+        totalSwitchDelay += (fabricSwitchSerialDelay +
+                fabricSwitchSerialDelay + fabricSwitchSerialDelay +
+                fabricSwitchSerialDelay + edgeSwitchSerialDelay);
+    } else if (!isSingleSpeedFabric) {
+
+        totalSwitchDelay += edgeSwitchFixDelay;
+    }
+
+    // Add 2 edge link delays and 4 fabric link delays
+    totalSwitchDelay += (2 * edgeLinkDelay + 4 * fabricLinkDelay);
+    // logFile << " switchdelay3: " << totalSwitchDelay << std::endl;
+
+
+
+    return  2 * (msgSerializationDelay + totalSwitchDelay + hostDelayOverheads);
 }

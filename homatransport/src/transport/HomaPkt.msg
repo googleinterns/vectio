@@ -41,7 +41,7 @@ struct UnschedFields
 
     // Total number of unscheduled bytes sent for this message. ie. the bytes
     // sent in this unsched plus the bytes sent in every other unsched packets.
-    uint16_t totalUnschedBytes;
+    uint32_t totalUnschedBytes;
 
     // the index of first and last byte data bytes that trailing this unsched.
     // packet.

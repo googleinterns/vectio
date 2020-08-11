@@ -134,6 +134,8 @@ VectioTransport::initialize()
     maxWindSize = 1.1 * allowedInFlightGrantedBytes;
     minWindSize = (int) (0.125 * ((double)(allowedInFlightGrantedBytes)));
 
+    lastHeardThreshold = 3.0 * baseRtt;
+
     logFile <<  "basertt: " << baseRtt << " nic: " << nicLinkSpeed <<  " allowed: " << allowedInFlightGrantedBytes <<   " freegrantsize: " << freeGrantSize << std::endl;
 
     srand(1);

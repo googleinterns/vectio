@@ -118,6 +118,28 @@ const EtherMACBase::EtherDescr EtherMACBase::etherDescrs[NUM_OF_ETHERDESCRS] = {
         0,
         0.0,
         0.0
+    },
+    {
+        HUNDRED_SIXTY_GIGABIT_ETHERNET_TXRATE,
+        0.5 / HUNDRED_SIXTY_GIGABIT_ETHERNET_TXRATE,
+        MIN_ETHERNET_FRAME_BYTES,
+        0,
+        0,
+        -1,    // half-duplex is not supported
+        0,
+        0.0,
+        0.0
+    },
+    {
+        FOUR_HUNDRED_GIGABIT_ETHERNET_TXRATE,
+        0.5 / FOUR_HUNDRED_GIGABIT_ETHERNET_TXRATE,
+        MIN_ETHERNET_FRAME_BYTES,
+        0,
+        0,
+        -1,    // half-duplex is not supported
+        0,
+        0.0,
+        0.0
     }
 };
 

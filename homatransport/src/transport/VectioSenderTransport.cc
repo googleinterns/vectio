@@ -112,8 +112,8 @@ VectioSenderTransport::initialize()
     sendQueueFreeTime = SIMTIME_ZERO;
     totalSendQueueSizeInBytes = 0;
 
-    nicLinkSpeed = par("nicLinkSpeed").longValue();
-    fabricLinkSpeed = par("fabricLinkSpeed").longValue();
+    nicLinkSpeed = 1e9 * par("nicLinkSpeed").longValue();
+    fabricLinkSpeed = 1e9 * par("fabricLinkSpeed").longValue();
     edgeLinkDelay = 1e-6 * par("edgeLinkDelay").doubleValue();
     fabricLinkDelay = 1e-6 * par("fabricLinkDelay").doubleValue();
     hostSwTurnAroundTime = 1e-6 * par("hostSwTurnAroundTime").doubleValue();
@@ -126,8 +126,8 @@ VectioSenderTransport::initialize()
     baseRtt = calculateBaseRtt();
     baseRttIntraPod = baseRtt;
 
-    allowedInFlightGrantedBytes = ((int)(baseRtt * nicBandwidth / 8.0));
-    allowedInFlightGrantedBytesIntraPod = ((int)(baseRttIntraPod * nicBandwidth / 8.0));
+    allowedInFlightGrantedBytes = ((int)(baseRtt * nicLinkSpeed / 8.0));
+    allowedInFlightGrantedBytesIntraPod = ((int)(baseRttIntraPod * nicLinkSpeed / 8.0));
 
     maxWindSize = 1.1 * allowedInFlightGrantedBytes;
     minWindSize = (int) (0.125 * ((double)(allowedInFlightGrantedBytes)));
@@ -547,21 +547,21 @@ VectioSenderTransport::processPendingMsgsToSend(){
                 dataPkt->setTimestamp(simTime());
                 sendQueue.push(dataPkt);
                 assert(sendQueueFreeTime <= simTime());
-                sendQueueFreeTime = simTime() + ((pktByteLen + 100) * 8.0 / nicBandwidth);
+                sendQueueFreeTime = simTime() + ((pktByteLen + 100) * 8.0 / nicLinkSpeed);
                 assert(totalSendQueueSizeInBytes == 0);
                 totalSendQueueSizeInBytes += pktByteLen;
             }
             else {
                 // logFile << simTime() << " no pkt retured" << std::endl;
                 // inboundGrantQueueBusy = false;
-                double trans_delay_temp = (grantSizeBytes + 100) * 8.0 /nicBandwidth; 
+                double trans_delay_temp = (grantSizeBytes + 100) * 8.0 /nicLinkSpeed; 
                 scheduleAt(simTime() + trans_delay_temp + INFINITISIMALTIME, inboundGrantQueueTimer);
                 return;
             }
 
             // schedule the next grant queue processing event after transmission time
             // of data packet corresponding to the current grant packet
-            double trans_delay = (pktByteLen + 100) * 8.0 /nicBandwidth; 
+            double trans_delay = (pktByteLen + 100) * 8.0 /nicLinkSpeed; 
             scheduleAt(simTime() + trans_delay + INFINITISIMALTIME, inboundGrantQueueTimer);
             processSendQueue();
             return;
@@ -814,7 +814,7 @@ VectioSenderTransport::processSendQueue(){
         assert(totalSendQueueSizeInBytes >= 0);
         // logFile << simTime() << " pkt into socket" << std::endl;
         socket.sendTo(sxPkt,sxPkt->getDestAddr(),localPort);
-        double trans_delay = (pktBytes + 100) * 8.0 /nicBandwidth;
+        double trans_delay = (pktBytes + 100) * 8.0 /nicLinkSpeed;
         scheduleAt(simTime() + trans_delay, sendQueueTimer);
         return;
     }
@@ -1097,13 +1097,13 @@ VectioSenderTransport::InboundMsg::appendPktData(HomaPkt* rxPkt)
         transport->totalSendQueueSizeInBytes += (ackPkt->getByteLength());
         if (transport->sendQueueBusy == false){
             transport->sendQueueFreeTime = simTime() + ((ackPkt->getByteLength() + 100) * 8.0 
-            / transport->nicBandwidth);
+            / transport->nicLinkSpeed);
             ackPkt->setDelay(delay);
             // logFile << simTime() << " setting delay: " << delay << std::endl;
         }
         else{
             transport->sendQueueFreeTime = transport->sendQueueFreeTime + ((ackPkt->getByteLength() + 100)
-             * 8.0 / transport->nicBandwidth);
+             * 8.0 / transport->nicLinkSpeed);
             ackPkt->setDelay(delay);
             // logFile << simTime() << " setting delay: " << delay << std::endl;
         }

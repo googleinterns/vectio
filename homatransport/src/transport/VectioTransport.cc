@@ -112,8 +112,8 @@ VectioTransport::initialize()
     sendQueueFreeTime = SIMTIME_ZERO;
     totalSendQueueSizeInBytes = 0;
 
-    nicLinkSpeed = par("nicLinkSpeed").longValue();
-    fabricLinkSpeed = par("fabricLinkSpeed").longValue();
+    nicLinkSpeed = 1e9 * par("nicLinkSpeed").longValue();
+    fabricLinkSpeed = 1e9 * par("fabricLinkSpeed").longValue();
     edgeLinkDelay = 1e-6 * par("edgeLinkDelay").doubleValue();
     fabricLinkDelay = 1e-6 * par("fabricLinkDelay").doubleValue();
     hostSwTurnAroundTime = 1e-6 * par("hostSwTurnAroundTime").doubleValue();
@@ -126,15 +126,15 @@ VectioTransport::initialize()
     baseRtt = calculateBaseRtt();
     baseRttIntraPod = baseRtt;
 
-    allowedInFlightGrantedBytes = ((int)(baseRtt * nicBandwidth / 8.0));
-    allowedInFlightGrantedBytesIntraPod = ((int)(baseRttIntraPod * nicBandwidth / 8.0));
+    allowedInFlightGrantedBytes = ((int)(baseRtt * nicLinkSpeed / 8.0));
+    allowedInFlightGrantedBytesIntraPod = ((int)(baseRttIntraPod * nicLinkSpeed / 8.0));
 
     freeGrantSize = (allowedInFlightGrantedBytes/grantSizeBytes) * grantSizeBytes;
 
     maxWindSize = 1.1 * allowedInFlightGrantedBytes;
     minWindSize = (int) (0.125 * ((double)(allowedInFlightGrantedBytes)));
 
-    logFile << " freegrantsize: " << freeGrantSize << std::endl;
+    logFile <<  "basertt: " << baseRtt << " nic: " << nicLinkSpeed <<  " allowed: " << allowedInFlightGrantedBytes <<   " freegrantsize: " << freeGrantSize << std::endl;
 
     srand(1);
 }
@@ -453,7 +453,7 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
     //     rxPkt->getDestAddr().toIPv4().getDByte(2)) {
     //         currentRtt = ((simTime() - rxPkt->getTimestamp()).dbl() * 2.0);
     //         assert(currentRtt > 0);
-    //         // allowedInFlightGrantedBytes = ((int)(currentRtt * nicBandwidth / 8.0));
+    //         // allowedInFlightGrantedBytes = ((int)(currentRtt * nicLinkSpeed / 8.0));
     //         logFile << simTime() << " updated rtt: " << currentRtt << " " << allowedInFlightGrantedBytes << " " << currentRcvInFlightGrantBytes << std::endl;
     // }
     currentRtt = ((simTime() - rxPkt->getTimestamp()).dbl() * 2.0);
@@ -749,7 +749,7 @@ VectioTransport::processPendingMsgsToSend(){
                 }
                 sendQueue.push(dataPkt);
                 assert(sendQueueFreeTime <= simTime());
-                sendQueueFreeTime = simTime() + ((pktByteLen + 100) * 8.0 / nicBandwidth);
+                sendQueueFreeTime = simTime() + ((pktByteLen + 100) * 8.0 / nicLinkSpeed);
                 assert(totalSendQueueSizeInBytes == 0);
                 totalSendQueueSizeInBytes += pktByteLen;
             }
@@ -760,7 +760,7 @@ VectioTransport::processPendingMsgsToSend(){
 
             // schedule the next grant queue processing event after transmission time
             // of data packet corresponding to the current grant packet
-            double trans_delay = (pktByteLen + 100) * 8.0 /nicBandwidth; 
+            double trans_delay = (pktByteLen + 100) * 8.0 /nicLinkSpeed; 
             scheduleAt(simTime() + trans_delay + INFINITISIMALTIME, inboundGrantQueueTimer);
             processSendQueue();
             return;
@@ -933,7 +933,7 @@ VectioTransport::processPendingMsgsToGrant(){
         if (grntPkt->getPktType() == PktType::NONE){
             // nothing to grant
             delete grntPkt;
-            double trans_delay = (freeGrantSize * 8.0 /nicBandwidth);
+            double trans_delay = (freeGrantSize * 8.0 /nicLinkSpeed);
             scheduleAt(simTime() + trans_delay, outboundGrantQueueTimer);
             return;
         }
@@ -971,11 +971,11 @@ VectioTransport::processPendingMsgsToGrant(){
         totalSendQueueSizeInBytes += (grntPkt->getByteLength());
         if (sendQueueBusy == false){
             sendQueueFreeTime = simTime() + ((grntPkt->getByteLength() + 100) * 8.0 
-            / nicBandwidth);
+            / nicLinkSpeed);
         }
         else{
             sendQueueFreeTime = sendQueueFreeTime + ((grntPkt->getByteLength() + 100)
-             * 8.0 / nicBandwidth);
+             * 8.0 / nicLinkSpeed);
         }
         // update the bytes granted for the inbound msg
         uint64_t msgId = grntPkt->getMsgId();
@@ -997,7 +997,7 @@ VectioTransport::processPendingMsgsToGrant(){
         // schedule the next grant queue processing event after transmission time
         // of data packet corresponding to the current grant packet
         double trans_delay = (grntPkt->getGrantFields().grantBytes + 100) * 8.0 
-        /nicBandwidth;
+        /nicLinkSpeed;
         scheduleAt(simTime() + trans_delay, outboundGrantQueueTimer);
 
         if (sendQueueBusy == false){
@@ -1316,7 +1316,7 @@ VectioTransport::processSendQueue(){
         totalSendQueueSizeInBytes -= (pktBytes);
         assert(totalSendQueueSizeInBytes >= 0);
         socket.sendTo(sxPkt,sxPkt->getDestAddr(),localPort);
-        double trans_delay = (pktBytes + 100) * 8.0 /nicBandwidth;
+        double trans_delay = (pktBytes + 100) * 8.0 /nicLinkSpeed;
         scheduleAt(simTime() + trans_delay, sendQueueTimer);
         return;
     }

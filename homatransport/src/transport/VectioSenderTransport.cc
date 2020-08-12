@@ -132,6 +132,7 @@ VectioSenderTransport::initialize()
     maxWindSize = 1.1 * allowedInFlightGrantedBytes;
     minWindSize = (int) (0.125 * ((double)(allowedInFlightGrantedBytes)));
 
+    transportSchedulingPolicy = std::string(par("transportSchedulingPolicy").stringValue());
     srand(1);
 }
 
@@ -255,6 +256,9 @@ VectioSenderTransport::processMsgFromApp(AppMessage* sendMsg)
         outboundSxMsg->msgIdAtSender) == pendingMsgsToSend.end());
     pendingMsgsToSend.insert(
         std::pair<uint64_t,int>(outboundSxMsg->msgIdAtSender,bytesToGrant));
+    if(pendingMsgsToSend.size()==1){
+        lastChosenMsgItr = pendingMsgsToSend.begin();
+    }
 
     if(windPerDest.find(destAddr) == windPerDest.end()){
         if(destAddr.toIPv4().getDByte(2) == srcAddr.toIPv4().getDByte(2)){
@@ -457,7 +461,7 @@ VectioSenderTransport::processAckPkt(HomaPkt* rxPkt)
     assert(receiverInFlightBytes.find(rxPkt->getSrcAddr()) !=
     receiverInFlightBytes.end());
     auto itr = receiverInFlightBytes.find(rxPkt->getSrcAddr());
-    // logFile << simTime() << " itr->second: " << itr->second << " " << pktBytes << std::endl;
+    logFile << simTime() << " itr->second: " << itr->second << " " << pktBytes  << " msg: " << rxPkt->getMsgId() << std::endl;
 
     assert(itr->second >= pktBytes);
     
@@ -520,7 +524,7 @@ VectioSenderTransport::processPendingMsgsToSend(){
     if (sendQueueBusy == false){
         if (pendingMsgsToSend.empty() != true) {
             inboundGrantQueueBusy = true;
-            HomaPkt* dataPkt = extractDataPkt("SRPT");
+            HomaPkt* dataPkt = extractDataPkt(transportSchedulingPolicy.c_str());
             dataPkt->pktScheduleTime = simTime();
             int pktByteLen = 0;
             if (dataPkt->getPktType() == PktType::SCHED_DATA || 
@@ -596,7 +600,7 @@ VectioSenderTransport::extractDataPkt(const char* schedulingPolicy){
 
     // then create a data pkt
     // if no data pkt possible, create a data pkt but make its type to be null
-    if (schedulingPolicy == "SRPT") {
+    if (strcmp(schedulingPolicy,"SRPT") == 0) {
 
         if (currentSenderInFlightBytes > (int) (degOverComm * 
         allowedInFlightGrantedBytes)){
@@ -782,6 +786,163 @@ VectioSenderTransport::extractDataPkt(const char* schedulingPolicy){
 
             return sxPkt;
         
+    }
+    else if(strcmp(schedulingPolicy,"RR") == 0){
+         if (currentSenderInFlightBytes > (int) (degOverComm * 
+        allowedInFlightGrantedBytes)){
+            //receiver already exceeded the allowed inflight byte limit
+            HomaPkt* nonePkt = new HomaPkt();
+            nonePkt->setPktType(PktType::NONE);
+            return nonePkt;
+        }
+
+        std::set<inet::L3Address> receiversToExclude;
+        receiversToExclude.clear();
+
+        uint64_t chosenMsgId;
+        inet::L3Address chosenDestAddr;
+        assert(pendingMsgsToSend.size() > 0);
+        auto chosenItr = lastChosenMsgItr;
+        int msgsIgnored = 0;
+
+        uint16_t assignedPrio = 2;
+
+        do{
+            chosenItr = lastChosenMsgItr;
+            if(msgsIgnored == pendingMsgsToSend.size()){
+                HomaPkt* nonePkt = new HomaPkt();
+                nonePkt->setPktType(PktType::NONE);
+                return nonePkt;
+            }
+            
+            if(pendingMsgsToSend.empty()){
+                HomaPkt* nonePkt = new HomaPkt();
+                nonePkt->setPktType(PktType::NONE);
+                return nonePkt;
+            }
+
+            if(lastChosenMsgItr == pendingMsgsToSend.end()){
+                lastChosenMsgItr = pendingMsgsToSend.begin();
+                chosenItr = lastChosenMsgItr;
+            }
+
+            uint64_t messageID = chosenItr->first; 
+
+
+            if (incompleteSxMsgsMap.find(messageID) == incompleteSxMsgsMap.end()){
+                lastChosenMsgItr++;
+                pendingMsgsToSend.erase(chosenItr);
+                continue;
+            }
+
+            int bytesToSend = chosenItr->second;
+            chosenDestAddr = incompleteSxMsgsMap[messageID]->destAddr;
+            if (bytesToSend == 0){
+                lastChosenMsgItr++;
+                msgsIgnored++;
+                continue;
+            }
+
+            if(receiversToExclude.find(chosenDestAddr) != receiversToExclude.end()){
+                lastChosenMsgItr++;
+                msgsIgnored++;
+                continue;
+            }
+
+            if(receiverInFlightBytes.find(chosenDestAddr) ==
+            receiverInFlightBytes.end()){
+                receiverInFlightBytes.insert(std::pair<inet::L3Address,int>(chosenDestAddr,0));
+            }
+            assert(receiverInFlightBytes.find(chosenDestAddr) !=
+            receiverInFlightBytes.end());
+            auto receiverBytesItr = receiverInFlightBytes.find(chosenDestAddr);
+
+            if (receiverBytesItr->second > windPerDest.find(chosenDestAddr)->second){
+                receiversToExclude.insert(chosenDestAddr);
+                assignedPrio++;
+                lastChosenMsgItr++;
+                msgsIgnored++;
+                continue;
+            }
+            else{
+                chosenMsgId = messageID;
+                lastChosenMsgItr++;
+                break;
+            }
+
+
+            
+        }while(1);
+
+            //also update the senderinflight bytes here now, i guess there was no need for them to be updated here
+
+            OutboundMsg* outboundSxMsg = incompleteSxMsgsMap[chosenMsgId];
+            if(assignedPrio > 7){
+                assignedPrio = 7;
+            }
+            outboundSxMsg->schedPrio = assignedPrio;
+
+            uint32_t msgByteLen = outboundSxMsg->msgByteLen;
+            simtime_t msgCreationTime = outboundSxMsg->msgCreationTime;
+            inet::L3Address destAddr = outboundSxMsg->destAddr;
+            inet::L3Address srcAddr = outboundSxMsg->srcAddr;
+            uint32_t firstByte = outboundSxMsg->nextByteToSend;
+            uint32_t lastByte = 0;
+
+            int bytesLeftToSend = chosenItr->second;
+            // assert(bytesLeftToSend == chosenItr->second);
+            assert(bytesLeftToSend <= msgByteLen);
+
+            HomaPkt* sxPkt = new HomaPkt();
+            sxPkt->setSrcAddr(srcAddr);
+            sxPkt->setDestAddr(destAddr);
+            sxPkt->setMsgId(chosenMsgId);
+            
+            uint32_t pktByteLen = std::min((uint32_t)grantSizeBytes,
+            (uint32_t)bytesLeftToSend);
+            lastByte = firstByte + pktByteLen - 1;
+            int outboundMsgRemBytes = outboundSxMsg->msgByteLen - (lastByte + 1);
+            assert(outboundMsgRemBytes >= 0);
+            if (lastByte <= freeGrantSize) {
+                // send unsched packet
+                UnschedFields unschedField;
+                unschedField.firstByte = firstByte;
+                unschedField.lastByte = lastByte;
+                unschedField.msgByteLen = msgByteLen;
+                unschedField.msgCreationTime = msgCreationTime;
+                unschedField.totalUnschedBytes = std::min((int)msgByteLen,
+                freeGrantSize);
+                sxPkt->setPktType(PktType::UNSCHED_DATA);
+                sxPkt->setUnschedFields(unschedField);
+                sxPkt->setPriority(1);
+            }
+            else {
+                // send sched packet
+                SchedDataFields schedField;
+                schedField.firstByte = firstByte;
+                schedField.lastByte = lastByte;
+                sxPkt->setPktType(PktType::SCHED_DATA);
+                sxPkt->setSchedDataFields(schedField);
+                sxPkt->setPriority(outboundSxMsg->schedPrio);
+                assert(outboundSxMsg->schedPrio >= 2);
+                assert(outboundSxMsg->schedPrio <= 7);
+            }
+            sxPkt->setByteLength(pktByteLen + sxPkt->headerSize());
+            firstByte = lastByte + 1;
+            outboundSxMsg->nextByteToSend = firstByte;
+
+            bytesLeftToSend -= pktByteLen;
+            assert(bytesLeftToSend >= 0);
+            chosenItr->second = bytesLeftToSend;
+
+            if(bytesLeftToSend == 0){
+                pendingMsgsToSend.erase(pendingMsgsToSend.find(chosenMsgId));
+            }
+
+            receiverInFlightBytes.find(chosenDestAddr)->second += pktByteLen;
+            currentSenderInFlightBytes += pktByteLen;
+
+            return sxPkt;
     }
     else {
         assert(false);

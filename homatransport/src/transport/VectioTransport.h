@@ -274,7 +274,10 @@ class VectioTransport : public cSimpleModule
     bool isFabricCutThrough;
     bool isSingleSpeedFabric;
 
+    PendingMsgsToGrant::iterator lastMsgGrantedItr;
+    PendingMsgsToSend::iterator lastMsgSentItr;
 
+    std::string transportSchedulingPolicy;
     public:
       int grantSizeBytes = 1000;
 };

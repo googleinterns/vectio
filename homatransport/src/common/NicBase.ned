@@ -61,6 +61,7 @@ module NicBase extends NodeBase
         int degOverComm;
         string logFile;
         string switchLogFile;
+        string transportSchedulingPolicy;
     gates:
         input pcieIn;
         output pcieOut;
@@ -82,6 +83,7 @@ module NicBase extends NodeBase
                 degOverComm = degOverComm;
                 logFile = logFile;
                 switchLogFile = switchLogFile;
+                transportSchedulingPolicy = transportSchedulingPolicy;
         }
 
         udp: <udpType> like IUDP if hasUdp {

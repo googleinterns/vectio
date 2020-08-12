@@ -92,6 +92,7 @@ network DcnTopo
         string switchLogFile = default("switch.log");
         string outputFileName = default("fcts.txt");
         string workloadFileName = default("flows.txt");
+        string transportSchedulingPolicy = default("SRPT");
 
     types:
         channel FabricChannel extends DatarateChannel
@@ -136,6 +137,7 @@ network DcnTopo
             degOverComm = degOverComm;
             logFile = logFile;
             switchLogFile = switchLogFile;
+            transportSchedulingPolicy = transportSchedulingPolicy;
         }
 
         app[numHosts]: AppmasterBase {

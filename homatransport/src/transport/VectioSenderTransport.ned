@@ -42,6 +42,7 @@ simple VectioSenderTransport like ITransportScheme
         bool isSingleSpeedFabric;
 
         int degOverComm = default(8);
+        string transportSchedulingPolicy = default("SRPT");
 
     gates:
         input appIn[] @labels(AppMessage/down);

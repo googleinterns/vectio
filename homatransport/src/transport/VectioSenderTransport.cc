@@ -135,6 +135,10 @@ VectioSenderTransport::initialize()
 
     transportSchedulingPolicy = std::string(
         par("transportSchedulingPolicy").stringValue());
+
+    congCtrl = par("congCtrl").boolValue();
+    ai = par("ai").doubleValue();
+    md = par("md").doubleValue();
     srand(1);
 }
 
@@ -452,7 +456,9 @@ VectioSenderTransport::processAckPkt(HomaPkt* rxPkt)
         targetDelayPerReceiver.end());
     }
 
-    adjustWindSize(rxPkt->getSrcAddr(), pktBytes);
+    if(congCtrl == true){
+        adjustWindSize(rxPkt->getSrcAddr(), pktBytes);
+    }
 
     assert(receiverInFlightBytes.find(rxPkt->getSrcAddr()) !=
     receiverInFlightBytes.end());

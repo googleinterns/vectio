@@ -139,6 +139,10 @@ VectioTransport::initialize()
 
     transportSchedulingPolicy = std::string(
         par("transportSchedulingPolicy").stringValue());
+
+    congCtrl = par("congCtrl").boolValue();
+    ai = par("ai").doubleValue();
+    md = par("md").doubleValue();
     srand(1);
 }
 
@@ -497,7 +501,9 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
     }
     assert(pktSize > 0);
 
-    adjustWindSize(rxPkt->getSrcAddr(), pktSize);
+    if(congCtrl == true){
+        adjustWindSize(rxPkt->getSrcAddr(), pktSize);
+    }
 
     //////////// TESTING PKT DROPS /////////////////
     // int dropPkt = rand() % 20;

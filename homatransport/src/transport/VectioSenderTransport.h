@@ -279,7 +279,7 @@ class VectioSenderTransport : public cSimpleModule
     PendingMsgsToSend::iterator lastChosenMsgItr;
 
     std::string transportSchedulingPolicy;
-
+    bool congCtrl = true;
 
     public:
       int grantSizeBytes = 1000;

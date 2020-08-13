@@ -62,6 +62,9 @@ module NicBase extends NodeBase
         string logFile;
         string switchLogFile;
         string transportSchedulingPolicy;
+        bool congCtrl;
+        double ai;
+        double md;
     gates:
         input pcieIn;
         output pcieOut;
@@ -84,6 +87,9 @@ module NicBase extends NodeBase
                 logFile = logFile;
                 switchLogFile = switchLogFile;
                 transportSchedulingPolicy = transportSchedulingPolicy;
+                congCtrl = congCtrl;
+                ai = ai;
+                md = md;
         }
 
         udp: <udpType> like IUDP if hasUdp {

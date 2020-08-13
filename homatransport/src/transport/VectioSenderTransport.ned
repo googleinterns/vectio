@@ -44,6 +44,10 @@ simple VectioSenderTransport like ITransportScheme
         int degOverComm = default(8);
         string transportSchedulingPolicy = default("SRPT");
 
+        bool congCtrl;
+        double ai;
+        double md;
+
     gates:
         input appIn[] @labels(AppMessage/down);
         input udpIn @labels(UDPControlInfo/up);

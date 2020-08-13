@@ -127,7 +127,8 @@ VectioTransport::initialize()
     baseRttIntraPod = baseRtt;
 
     allowedInFlightGrantedBytes = ((int)(baseRtt * nicLinkSpeed / 8.0));
-    allowedInFlightGrantedBytesIntraPod = ((int)(baseRttIntraPod * nicLinkSpeed / 8.0));
+    allowedInFlightGrantedBytesIntraPod = ((int)(baseRttIntraPod * 
+        nicLinkSpeed / 8.0));
 
     freeGrantSize = (allowedInFlightGrantedBytes/grantSizeBytes) * grantSizeBytes;
 
@@ -136,10 +137,8 @@ VectioTransport::initialize()
 
     lastHeardThreshold = 3.0 * baseRtt;
 
-    transportSchedulingPolicy = std::string(par("transportSchedulingPolicy").stringValue());
-
-    logFile << "policy: " << transportSchedulingPolicy  << " basertt: " << baseRtt << " nic: " << nicLinkSpeed <<  " allowed: " << allowedInFlightGrantedBytes <<   " freegrantsize: " << freeGrantSize << std::endl;
-
+    transportSchedulingPolicy = std::string(
+        par("transportSchedulingPolicy").stringValue());
     srand(1);
 }
 
@@ -291,7 +290,7 @@ VectioTransport::processMsgFromApp(AppMessage* sendMsg)
         outboundSxMsg->msgIdAtSender) == pendingMsgsToSend.end());
     pendingMsgsToSend.insert(
         std::pair<uint64_t,int>(outboundSxMsg->msgIdAtSender,bytesToGrant));
-    if(pendingMsgsToSend.size()==1){
+    if (pendingMsgsToSend.size()==1){
         lastMsgSentItr = pendingMsgsToSend.begin();
     }
 
@@ -414,7 +413,7 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
                 pendingMsgsToGrant.insert(std::pair<uint64_t, 
                 std::set<std::pair<inet::L3Address,int>>>(
                     inboundRxMsg->msgIdAtSender,tempSet));
-                if(pendingMsgsToGrant.size() == 1){
+                if (pendingMsgsToGrant.size() == 1){
                     lastMsgGrantedItr = pendingMsgsToGrant.begin();
                 }
             }
@@ -460,49 +459,46 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
     // }
 
     //update the rtt
-    // if (rxPkt->getSrcAddr().toIPv4().getDByte(2) != 
-    //     rxPkt->getDestAddr().toIPv4().getDByte(2)) {
-    //         currentRtt = ((simTime() - rxPkt->getTimestamp()).dbl() * 2.0);
-    //         assert(currentRtt > 0);
-    //         // allowedInFlightGrantedBytes = ((int)(currentRtt * nicLinkSpeed / 8.0));
-    //         logFile << simTime() << " updated rtt: " << currentRtt << " " << allowedInFlightGrantedBytes << " " << currentRcvInFlightGrantBytes << std::endl;
-    // }
     currentRtt = ((simTime() - rxPkt->getTimestamp()).dbl() * 2.0);
     auto currRttItr = currRttPerSender.find(rxPkt->getSrcAddr());
-    if(currRttItr == currRttPerSender.end()){
-        currRttPerSender.insert(std::pair<inet::L3Address,double>(rxPkt->getSrcAddr(),currentRtt));
-        assert(targetDelayPerSender.find(rxPkt->getSrcAddr()) == targetDelayPerSender.end());
-        targetDelayPerSender.insert(std::pair<inet::L3Address,double>(rxPkt->getSrcAddr(),calculateTargetDelay(rxPkt->getSrcAddr(),rxPkt->getDestAddr())));
+    if (currRttItr == currRttPerSender.end()){
+        currRttPerSender.insert(std::pair<inet::L3Address,double>(
+            rxPkt->getSrcAddr(),currentRtt));
+        assert(targetDelayPerSender.find(rxPkt->getSrcAddr()) == 
+        targetDelayPerSender.end());
+        targetDelayPerSender.insert(std::pair<inet::L3Address,double>(
+            rxPkt->getSrcAddr(),calculateTargetDelay(rxPkt->getSrcAddr(),
+            rxPkt->getDestAddr())));
         assert(windPerSender.find(rxPkt->getSrcAddr()) == windPerSender.end());
-        if(rxPkt->getSrcAddr().toIPv4().getDByte(2) == rxPkt->getDestAddr().toIPv4().getDByte(2)){
-            windPerSender.insert(std::pair<inet::L3Address, int>(rxPkt->getSrcAddr(), allowedInFlightGrantedBytesIntraPod));
+        if (rxPkt->getSrcAddr().toIPv4().getDByte(2) == 
+            rxPkt->getDestAddr().toIPv4().getDByte(2)){
+            windPerSender.insert(std::pair<inet::L3Address, int>(
+                rxPkt->getSrcAddr(), allowedInFlightGrantedBytesIntraPod));
         }
-        else{
-            windPerSender.insert(std::pair<inet::L3Address, int>(rxPkt->getSrcAddr(), allowedInFlightGrantedBytes));
+        else {
+            windPerSender.insert(std::pair<inet::L3Address, int>(
+                rxPkt->getSrcAddr(), allowedInFlightGrantedBytes));
         }
     }
-    else{
+    else {
         currRttItr->second = currentRtt;
-        logFile << simTime() << " currRtt: " << currentRtt << " target: " << targetDelayPerSender.find(rxPkt->getSrcAddr())->second << std::endl; 
         assert(targetDelayPerSender.find(rxPkt->getSrcAddr()) != targetDelayPerSender.end());
     }
 
     int pktSize = 0;
-    if(rxPkt->getPktType() == PktType::UNSCHED_DATA){
+    if (rxPkt->getPktType() == PktType::UNSCHED_DATA){
         pktSize = rxPkt->getUnschedFields().lastByte - rxPkt->getUnschedFields().firstByte + 1;
     }
-    else if(rxPkt->getPktType() == PktType::SCHED_DATA){
+    else if (rxPkt->getPktType() == PktType::SCHED_DATA){
         pktSize = rxPkt->getSchedDataFields().lastByte - rxPkt->getSchedDataFields().firstByte + 1;
     }
-    else{
+    else {
         assert(false);
     }
     assert(pktSize > 0);
 
     adjustWindSize(rxPkt->getSrcAddr(), pktSize);
 
-    // logFile << simTime() << " updated rtt: " << currentRtt << " target: " << 2.0 * calculateTargetDelay(rxPkt->getSrcAddr(),rxPkt->getDestAddr()) << " same tor: " << (rxPkt->getSrcAddr().toIPv4().getDByte(2) == rxPkt->getDestAddr().toIPv4().getDByte(2)) 
-    // << " " << currentRcvInFlightGrantBytes << std::endl;
     //////////// TESTING PKT DROPS /////////////////
     // int dropPkt = rand() % 20;
     // if (dropPkt == 0){
@@ -563,15 +559,8 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
         senderInFlightGrantBytes.end()){
             auto itr = senderInFlightGrantBytes.find(rxPkt->getSrcAddr());
             itr->second += alreadyGrantedBytes;
-            if (logEvents && strcmp(parentHost->getName(),"nic") == 0
-             && parentHost->getIndex() == 0){
-                logFile << simTime() <<  " Updating senderinflightgrantbytes: "
-                 << " src: " << rxPkt->getSrcAddr() << " (add):" << " bytes: "
-                  << itr->second << " pktbytes: " << alreadyGrantedBytes << " msg: "
-                   << rxPkt->getMsgId() << std::endl;
-            }
         }
-        else{
+        else {
             senderInFlightGrantBytes.insert(std::pair<inet::L3Address,int>(
                 rxPkt->getSrcAddr(),alreadyGrantedBytes
             ));
@@ -597,7 +586,7 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
                 pendingMsgsToGrant.insert(std::pair<uint64_t, 
                 std::set<std::pair<inet::L3Address,int>>>(
                     inboundRxMsg->msgIdAtSender,tempSet));
-                if(pendingMsgsToGrant.size() == 1){
+                if (pendingMsgsToGrant.size() == 1){
                     lastMsgGrantedItr = pendingMsgsToGrant.begin();
                 }
             }
@@ -763,7 +752,8 @@ VectioTransport::processPendingMsgsToSend(){
                 }
                 sendQueue.push(dataPkt);
                 assert(sendQueueFreeTime <= simTime());
-                sendQueueFreeTime = simTime() + ((pktByteLen + 100) * 8.0 / nicLinkSpeed);
+                sendQueueFreeTime = simTime() + ((pktByteLen + 100) * 8.0 
+                    / nicLinkSpeed);
                 assert(totalSendQueueSizeInBytes == 0);
                 totalSendQueueSizeInBytes += pktByteLen;
             }
@@ -775,7 +765,8 @@ VectioTransport::processPendingMsgsToSend(){
             // schedule the next grant queue processing event after transmission time
             // of data packet corresponding to the current grant packet
             double trans_delay = (pktByteLen + 100) * 8.0 /nicLinkSpeed; 
-            scheduleAt(simTime() + trans_delay + INFINITISIMALTIME, inboundGrantQueueTimer);
+            scheduleAt(simTime() + trans_delay + INFINITISIMALTIME, 
+            inboundGrantQueueTimer);
             processSendQueue();
             return;
         }
@@ -784,12 +775,13 @@ VectioTransport::processPendingMsgsToSend(){
             return;
         }
     }
-    else{
+    else {
         if (pendingMsgsToSend.empty() != true){
             inboundGrantQueueBusy = true;
         }
         assert(sendQueueFreeTime.dbl() >= simTime().dbl());
-        scheduleAt(sendQueueFreeTime + INFINITISIMALTIME, inboundGrantQueueTimer);
+        scheduleAt(sendQueueFreeTime + INFINITISIMALTIME, 
+            inboundGrantQueueTimer);
     }
 }
 
@@ -828,16 +820,12 @@ VectioTransport::extractDataPkt(const char* schedulingPolicy){
                 pendingMsgsToSend.erase(itr);
                 continue;
             }
-            else{
+            else {
                 uint32_t msgBytesRemaining = 
                 incompleteSxMsgsMap[messageID]->msgByteLen 
                 - incompleteSxMsgsMap[messageID]->nextByteToSend;
                 assert(bytesToSend > 0);
                 assert(msgBytesRemaining > 0);
-                if (logEvents && messageID == 288){
-                    logFile << simTime() << " bts: " << bytesToSend 
-                    << " msgbrem: " << msgBytesRemaining << std::endl;
-                }
                 assert(bytesToSend <= msgBytesRemaining);
 
                 if (msgBytesRemaining < minMsgBytesRemaining){
@@ -934,26 +922,26 @@ VectioTransport::extractDataPkt(const char* schedulingPolicy){
             return sxPkt;
         }
     }
-    else if(strcmp(schedulingPolicy,"RR") == 0){
+    else if (strcmp(schedulingPolicy,"RR") == 0){
         uint64_t chosenMsgId;
         auto chosenItr = pendingMsgsToSend.begin();
         int msgsIgnored = 0;
         
-        do{
+        do {
             chosenItr = lastMsgSentItr;
-            if(msgsIgnored == pendingMsgsToSend.size()){
+            if (msgsIgnored == pendingMsgsToSend.size()){
                 HomaPkt* nonePkt = new HomaPkt();
                 nonePkt->setPktType(PktType::NONE);
                 return nonePkt;
             }
 
-            if(pendingMsgsToSend.empty()){
+            if (pendingMsgsToSend.empty()){
                 HomaPkt* nonePkt = new HomaPkt();
                 nonePkt->setPktType(PktType::NONE);
                 return nonePkt;
             }
 
-            if(lastMsgSentItr == pendingMsgsToSend.end()){
+            if (lastMsgSentItr == pendingMsgsToSend.end()){
                 lastMsgSentItr = pendingMsgsToSend.begin();
                 chosenItr = lastMsgSentItr;
             }
@@ -976,10 +964,7 @@ VectioTransport::extractDataPkt(const char* schedulingPolicy){
             chosenMsgId = messageID;
             lastMsgSentItr++;
             break;
-        }while(1);
-
-        logFile << simTime() << " chosen msg id: " << chosenMsgId << std::endl;
-
+        }while (1);
         
         
         OutboundMsg* outboundSxMsg = incompleteSxMsgsMap[chosenMsgId];
@@ -1058,26 +1043,24 @@ VectioTransport::processPendingMsgsToGrant(){
         }
         // update the last grant sent to sender time
         auto itrGrantSent = lastGrantSentToSender.find(grntPkt->getDestAddr());
-        if(itrGrantSent == lastGrantSentToSender.end()){
-            lastGrantSentToSender.insert(std::pair<inet::L3Address,simtime_t>(grntPkt->getDestAddr(),simTime()));
+        if (itrGrantSent == lastGrantSentToSender.end()){
+            lastGrantSentToSender.insert(std::pair<inet::L3Address,simtime_t>(
+                grntPkt->getDestAddr(),simTime()));
         }
-        else{
+        else {
             assert(itrGrantSent->second <= simTime());
             itrGrantSent->second = simTime();
         }
         auto itrGrantedMsgs = grantedMsgsPerSender.find(grntPkt->getDestAddr());
-        if(itrGrantedMsgs == grantedMsgsPerSender.end()){
+        if (itrGrantedMsgs == grantedMsgsPerSender.end()){
             std::set<uint64_t> tempSet;
             tempSet.clear();
             tempSet.insert(grntPkt->getMsgId());
-            grantedMsgsPerSender.insert(std::pair<inet::L3Address,std::set<uint64_t>>(grntPkt->getDestAddr(), tempSet));
+            grantedMsgsPerSender.insert(std::pair<inet::L3Address,
+                std::set<uint64_t>>(grntPkt->getDestAddr(), tempSet));
         }
-        else{
+        else {
             itrGrantedMsgs->second.insert(grntPkt->getMsgId());
-        }
-        if (grntPkt->getMsgId() == 288){
-            logFile << simTime() << " sent grant pkt for msg: " 
-            << grntPkt->getMsgId() << std::endl;
         }
         assert(grntPkt->getPktType() == PktType::GRANT);
         // socket.sendTo(grntPkt, grntPkt->getDestAddr(), destPort);
@@ -1089,10 +1072,11 @@ VectioTransport::processPendingMsgsToGrant(){
         sendQueue.push(grntPkt);
         totalSendQueueSizeInBytes += (grntPkt->getByteLength());
         if (sendQueueBusy == false){
-            sendQueueFreeTime = simTime() + ((grntPkt->getByteLength() + 100) * 8.0 
-            / nicLinkSpeed);
+            sendQueueFreeTime = simTime() + 
+                ((grntPkt->getByteLength() + 100) * 8.0 
+                / nicLinkSpeed);
         }
-        else{
+        else {
             sendQueueFreeTime = sendQueueFreeTime + ((grntPkt->getByteLength() + 100)
              * 8.0 / nicLinkSpeed);
         }
@@ -1123,7 +1107,7 @@ VectioTransport::processPendingMsgsToGrant(){
             processSendQueue();
         }
     }
-    else{
+    else {
         outboundGrantQueueBusy = false;
         return;
     }
@@ -1154,7 +1138,7 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
         auto chosenItr2 = chosenItr->second.begin();
         uint16_t assignedPrio = 2;
 
-        do{
+        do {
             int minBytesToGrant = INT_MAX;
             simtime_t minCreationTime;
             // uint64_t chosenMsgId;
@@ -1200,13 +1184,6 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
                         }
                     }
                     assert(inboundRxMsg != NULL);
-                    if (logEvents && strcmp(parentHost->getName(),"nic") == 0 && 
-                    parentHost->getIndex() == 0){
-                        logFile << " id:" << messageID << " src:" << messageSrcAddr
-                         << " btg:" << bytesToGrant 
-                        << " ct:" << inboundRxMsg->msgCreationTime << " ::::: ";
-                    }
-
 
                     if (bytesToGrant < minBytesToGrant && 
                     sendersToExclude.find(messageSrcAddr) == 
@@ -1235,23 +1212,12 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
                 }
             }
 
-            if (logEvents && strcmp(parentHost->getName(),"nic") == 0 
-            && parentHost->getIndex() == 0){
-                logFile << " something chosen: " << someMsgChosen << std::endl;
-            }
-
             if (someMsgChosen == false){
                 // no msg could be chosen because of 
                 // the in flight byte constraints
                 HomaPkt* nonePkt = new HomaPkt();
                 nonePkt->setPktType(PktType::NONE);
                 return nonePkt;
-            }
-            if (logEvents && strcmp(parentHost->getName(),"nic") == 0
-             && parentHost->getIndex() == 0){
-                logFile << " temp chosen msg: " << chosenMsgId << " src: " 
-                << chosenSrcAddr << " btg: " << minBytesToGrant << " ct: " 
-                << minCreationTime << std::endl;
             }
             assert(senderInFlightGrantBytes.find(chosenSrcAddr) !=
             senderInFlightGrantBytes.end());
@@ -1261,23 +1227,21 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
             // reset the senderInFlightBytes counter and the total bytes in flight counter
             auto itrLastHeard = this->lastHeardFromSender.find(chosenSrcAddr);
             auto itrLastGrant = this->lastGrantSentToSender.find(chosenSrcAddr);
-            if(itrLastHeard != this->lastHeardFromSender.end() &&
+            if (itrLastHeard != this->lastHeardFromSender.end() &&
             itrLastGrant != this->lastGrantSentToSender.end()){
                 simtime_t lastHeardTime = itrLastHeard->second;
                 simtime_t lastGrantTime = itrLastGrant->second;
-                if((lastGrantTime > lastHeardTime) &&
+                if ((lastGrantTime > lastHeardTime) &&
                 (senderBytesItr->second > 0)  && 
                 (simTime() - lastGrantTime >= this->lastHeardThreshold) &&
                 (simTime() - lastHeardTime >= this->lastHeardThreshold)){
                     auto itrGrantedMsgs = this->grantedMsgsPerSender.find(chosenSrcAddr);
                     assert(itrGrantedMsgs != this->grantedMsgsPerSender.end());
-                    if(itrGrantedMsgs->second.find(chosenMsgId) == itrGrantedMsgs->second.end()){
+                    if (itrGrantedMsgs->second.find(chosenMsgId) == itrGrantedMsgs->second.end()){
                         this->extraGrantedBytes += senderBytesItr->second;
                         currentRcvInFlightGrantBytes -= senderBytesItr->second;
                         senderBytesItr->second = 0;
                         assert(currentRcvInFlightGrantBytes >= 0);
-                        // logFile << simTime() << " extra granted bytes for sender: " << chosenSrcAddr << " : " << this->extraGrantedBytes  << " chosen msg: " << chosenMsgId << std::endl;
-                        // logFile.flush();
                         assert(simTime() - lastHeardTime >= 0);
                         itrLastHeard->second = simTime();
                     }
@@ -1285,7 +1249,6 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
             }
 
             assert(windPerSender.find(chosenSrcAddr) != windPerSender.end());
-            // logFile << simTime() << " cur wind here: " << windPerSender.find(chosenSrcAddr)->second << std::endl;
 
             if (senderBytesItr->second > windPerSender.find(chosenSrcAddr)->second){
                 sendersToExclude.insert(chosenSrcAddr);
@@ -1294,10 +1257,11 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
                 parentHost->getIndex() == 0){
                     logFile << "Excluding sender: " << chosenSrcAddr 
                     << " sender bytes: " << senderBytesItr->second
-                     << " allowed window: " << windPerSender.find(chosenSrcAddr)->second << std::endl;
+                     << " allowed window: " << windPerSender.find(
+                         chosenSrcAddr)->second << std::endl;
                 }
             }
-            else{
+            else {
                 auto checkItr = senderActiveGrantedMsg.find(chosenSrcAddr);
                 if (checkItr == senderActiveGrantedMsg.end()){
                     senderActiveGrantedMsg.insert(
@@ -1309,7 +1273,7 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
                     );
                     break;
                 }
-                else{
+                else {
                     if (chosenMsgId == (checkItr->second).first){
                         assert(minBytesToGrant == (checkItr->second).second);
                         break;
@@ -1320,27 +1284,15 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
                             chosenMsgId,minBytesToGrant);
                         break;
                     }
-                    else{
+                    else {
                         // try choosing another sender
                         sendersToExclude.insert(chosenSrcAddr);
                         assignedPrio++;
-                        if (logEvents && strcmp(parentHost->getName(),"nic") == 0
-                         && parentHost->getIndex() == 0){
-                            logFile << "Excluding sender: " << chosenSrcAddr 
-                            << " wanted to grant: " << minBytesToGrant
-                             << " actively granting: " << (checkItr->second).second 
-                             << " for msg: " << (checkItr->second).first << std::endl;
-                        }
                     }
                 }
             }
-        }while(1);
+        }while (1);
 
-        if (logEvents && strcmp(parentHost->getName(),"nic") == 0 
-        && parentHost->getIndex() == 0){
-            logFile << simTime() << " Finally chosen msg: " << chosenMsgId 
-            << " src: " << chosenSrcAddr << std::endl;
-        }
         // create grant packet using the chosen message
         assert(chosenItr == pendingMsgsToGrant.find(chosenMsgId));
         
@@ -1426,21 +1378,21 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
         // for now, the implementation assumes each msg has unique id
         uint16_t assignedPrio = 2;
 
-        do{
+        do {
             chosenItr = lastMsgGrantedItr;
-            if(msgsIgnored == pendingMsgsToGrant.size()){
+            if (msgsIgnored == pendingMsgsToGrant.size()){
                 HomaPkt* nonePkt = new HomaPkt();
                 nonePkt->setPktType(PktType::NONE);
                 return nonePkt;
             }
 
-            if(pendingMsgsToGrant.empty()){
+            if (pendingMsgsToGrant.empty()){
                 HomaPkt* nonePkt = new HomaPkt();
                 nonePkt->setPktType(PktType::NONE);
                 return nonePkt;
             }
 
-            if(lastMsgGrantedItr == pendingMsgsToGrant.end()){
+            if (lastMsgGrantedItr == pendingMsgsToGrant.end()){
                 lastMsgGrantedItr = pendingMsgsToGrant.begin();
                 chosenItr = lastMsgGrantedItr;
             }
@@ -1450,7 +1402,7 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
             int bytesToGrant = chosenItr->second.begin()->second;
             assert(bytesToGrant > 0);
 
-            if(sendersToExclude.find(messageSrcAddr) != sendersToExclude.end()){
+            if (sendersToExclude.find(messageSrcAddr) != sendersToExclude.end()){
                 lastMsgGrantedItr++;
                 msgsIgnored++;
                 continue;
@@ -1462,23 +1414,23 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
 
             auto itrLastHeard = this->lastHeardFromSender.find(messageSrcAddr);
             auto itrLastGrant = this->lastGrantSentToSender.find(messageSrcAddr);
-            if(itrLastHeard != this->lastHeardFromSender.end() &&
+            if (itrLastHeard != this->lastHeardFromSender.end() &&
             itrLastGrant != this->lastGrantSentToSender.end()){
                 simtime_t lastHeardTime = itrLastHeard->second;
                 simtime_t lastGrantTime = itrLastGrant->second;
-                if((lastGrantTime > lastHeardTime) &&
+                if ((lastGrantTime > lastHeardTime) &&
                 (senderBytesItr->second > 0)  && 
                 (simTime() - lastGrantTime >= this->lastHeardThreshold) &&
                 (simTime() - lastHeardTime >= this->lastHeardThreshold)){
-                    auto itrGrantedMsgs = this->grantedMsgsPerSender.find(messageSrcAddr);
+                    auto itrGrantedMsgs = this->grantedMsgsPerSender.find(
+                        messageSrcAddr);
                     assert(itrGrantedMsgs != this->grantedMsgsPerSender.end());
-                    if(itrGrantedMsgs->second.find(chosenMsgId) == itrGrantedMsgs->second.end()){
+                    if (itrGrantedMsgs->second.find(chosenMsgId) == 
+                        itrGrantedMsgs->second.end()){
                         this->extraGrantedBytes += senderBytesItr->second;
                         currentRcvInFlightGrantBytes -= senderBytesItr->second;
                         senderBytesItr->second = 0;
                         assert(currentRcvInFlightGrantBytes >= 0);
-                        // logFile << simTime() << " extra granted bytes for sender: " << messageSrcAddr << " : " << this->extraGrantedBytes  << " chosen msg: " << chosenMsgId << std::endl;
-                        // logFile.flush();
                         assert(simTime() - lastHeardTime >= 0);
                         itrLastHeard->second = simTime();
                     }
@@ -1487,24 +1439,23 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
             
 
             assert(windPerSender.find(messageSrcAddr) != windPerSender.end());
-            // logFile << simTime() << " cur wind here: " << windPerSender.find(messageSrcAddr)->second << std::endl;
 
-            if (senderBytesItr->second > windPerSender.find(messageSrcAddr)->second){
+            if (senderBytesItr->second > windPerSender.find(
+                messageSrcAddr)->second){
                 sendersToExclude.insert(messageSrcAddr);
                 assignedPrio++;
                 lastMsgGrantedItr++;
                 msgsIgnored++;
                 continue;
             }
-            else{
+            else {
                 chosenMsgId = messageID;
                 chosenSrcAddr = messageSrcAddr;
                 lastMsgGrantedItr++;
                 break;
             }
-        }while(1);
+        }while (1);
 
-        // logFile << simTime() << " chosen msg id: " << chosenMsgId << std::endl;
 
         // create grant packet using the chosen message
         assert(chosenItr == pendingMsgsToGrant.find(chosenMsgId));
@@ -1546,15 +1497,6 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
 
         chosenItr->second.erase(chosenItr->second.begin());
 
-        // assert(senderActiveGrantedMsg.find(chosenSrcAddr) !=
-        // senderActiveGrantedMsg.end());
-        // auto senderActiveMsgItr = senderActiveGrantedMsg.find(chosenSrcAddr);
-        // senderActiveMsgItr->second.second -= pktDataBytes;
-        // assert(senderActiveMsgItr->second.second >= 0);
-        // if (senderActiveMsgItr->second.second == 0){
-        //     senderActiveGrantedMsg.erase(senderActiveMsgItr);
-        // }
-
         if (remainingBytesToGrant > 0) {
             chosenItr->second.insert(std::pair<inet::L3Address,int>(
                 chosenSrcAddr,remainingBytesToGrant));
@@ -1580,21 +1522,22 @@ VectioTransport::processSendQueue(){
         sendQueueBusy = false;
         return;
     }
-    else{
+    else {
         sendQueueBusy = true;
         HomaPkt* sxPkt = sendQueue.front();
         sendQueue.pop();
         int pktBytes = 0;
         sxPkt->setTimestamp(simTime());
         if (sxPkt->getPktType() == PktType::UNSCHED_DATA){
-            pktBytes = sxPkt->getUnschedFields().lastByte - sxPkt->getUnschedFields().firstByte + 1;
+            pktBytes = sxPkt->getUnschedFields().lastByte - 
+            sxPkt->getUnschedFields().firstByte + 1;
         }
         else if (sxPkt->getPktType() == PktType::SCHED_DATA){
-            pktBytes = sxPkt->getSchedDataFields().lastByte - sxPkt->getSchedDataFields().firstByte + 1;
+            pktBytes = sxPkt->getSchedDataFields().lastByte - 
+            sxPkt->getSchedDataFields().firstByte + 1;
         }
         else if (sxPkt->getPktType() == PktType::GRANT){
             pktBytes = sxPkt->getByteLength();
-            // logFile << " length for grant pkt = " << pktBytes << std::endl;
         }
         totalSendQueueSizeInBytes -= (pktBytes);
         assert(totalSendQueueSizeInBytes >= 0);
@@ -1692,7 +1635,7 @@ VectioTransport::InboundMsg::checkAndSendNack()
         transport->scheduleAt(simTime() + retxTimeout,retxTimer);
         return;
     }
-    else{
+    else {
         if (missedPkts.size() > 0) {
             // send a NACK for every missed packet
             for (auto itr=missedPkts.begin(); itr != missedPkts.end(); itr++) {
@@ -1862,13 +1805,13 @@ VectioTransport::InboundMsg::appendPktData(HomaPkt* rxPkt)
         transport->senderInFlightGrantBytes.end());
         auto itr = transport->senderInFlightGrantBytes.find(rxPkt->getSrcAddr());
 
-        if(itr->second >= dataBytesInPkt){
+        if (itr->second >= dataBytesInPkt){
             itr->second -= dataBytesInPkt;
             assert(itr->second >= 0);
             transport->currentRcvInFlightGrantBytes -= dataBytesInPkt;
             assert(transport->currentRcvInFlightGrantBytes >= 0);
         }
-        else{
+        else {
             // remove extra bytes from extra grants
             int extraBytesToRemove = dataBytesInPkt - itr->second;
             transport->currentRcvInFlightGrantBytes -= itr->second;
@@ -1878,12 +1821,16 @@ VectioTransport::InboundMsg::appendPktData(HomaPkt* rxPkt)
             assert(transport->extraGrantedBytes >= 0);
         }
 
-        if(rxPkt->getPktType() == PktType::SCHED_DATA){
-            if(transport->lastHeardFromSender.find(rxPkt->getSrcAddr()) == transport->lastHeardFromSender.end() ){
-                transport->lastHeardFromSender.insert(std::pair<inet::L3Address,simtime_t>(rxPkt->getSrcAddr(),simTime()));
+        if (rxPkt->getPktType() == PktType::SCHED_DATA){
+            if (transport->lastHeardFromSender.find(rxPkt->getSrcAddr()) == 
+                transport->lastHeardFromSender.end() ){
+                transport->lastHeardFromSender.insert(
+                    std::pair<inet::L3Address,simtime_t>(
+                        rxPkt->getSrcAddr(),simTime()));
             }
-            else{
-                auto itrLastHeard = transport->lastHeardFromSender.find(rxPkt->getSrcAddr());
+            else {
+                auto itrLastHeard = transport->lastHeardFromSender.find(
+                    rxPkt->getSrcAddr());
                 assert(itrLastHeard->second <= simTime());
                 itrLastHeard->second = simTime();
             }
@@ -1911,7 +1858,8 @@ VectioTransport::InboundMsg::appendPktData(HomaPkt* rxPkt)
 }
 
 double
-VectioTransport::calculateTargetDelay(inet::L3Address sAddr, inet::L3Address dAddr){
+VectioTransport::calculateTargetDelay(inet::L3Address sAddr, 
+inet::L3Address dAddr){
     int totalBytesTranmitted = 0;
     inet::L3Address srcAddr = sAddr;
     ASSERT(srcAddr.getType() == inet::L3Address::AddressType::IPv4);
@@ -1957,12 +1905,10 @@ VectioTransport::calculateTargetDelay(inet::L3Address sAddr, inet::L3Address dAd
 
     double msgSerializationDelay =
             1e-9 * ((totalBytesTranmitted << 3) * 1.0 / nicLinkSpeed);
-    // logFile << " total bytes: " << totalBytesTranmitted << " " <<  " msgdelay: " << msgSerializationDelay << std::endl;
 
     // There's always two hostSwTurnAroundTime and one nicThinkTime involved
     // in ideal latency for the overhead.
     double hostDelayOverheads = 2 * hostSwTurnAroundTime + hostNicSxThinkTime;
-    // logFile << " hostdelay: " << hostDelayOverheads << std::endl;
 
     // Depending on if the switch model is store-forward (omnet++ default model)
     // or cutthrough (as we implemented), the switch serialization delay would
@@ -2001,7 +1947,6 @@ VectioTransport::calculateTargetDelay(inet::L3Address sAddr, inet::L3Address dAd
 
         // Add 2 edge link delays
         totalSwitchDelay += (2 * edgeLinkDelay);
-        // logFile << " switchdelay1: " << totalSwitchDelay << std::endl;
 
     } else if (destAddr.toIPv4().getDByte(1) == srcAddr.toIPv4().getDByte(1)) {
 
@@ -2020,7 +1965,6 @@ VectioTransport::calculateTargetDelay(inet::L3Address sAddr, inet::L3Address dAd
 
         // Add 2 edge link delays and two fabric link delays
         totalSwitchDelay += (2 * edgeLinkDelay + 2 * fabricLinkDelay);
-        // logFile << " switchdelay2: " << totalSwitchDelay << std::endl;
 
 
     } else {
@@ -2040,7 +1984,6 @@ VectioTransport::calculateTargetDelay(inet::L3Address sAddr, inet::L3Address dAd
 
         // Add 2 edge link delays and 4 fabric link delays
         totalSwitchDelay += (2 * edgeLinkDelay + 4 * fabricLinkDelay);
-        // logFile << " switchdelay3: " << totalSwitchDelay << std::endl;
 
     }
 
@@ -2060,31 +2003,28 @@ VectioTransport::adjustWindSize(inet::L3Address sAddr, int pktSize){
     auto curWind = windPerSender.find(sAddr)->second;
     int newWind = curWind;
 
-    if(currRtt < targetDelay){
+    if (currRtt < targetDelay){
         newWind = curWind + ((int)(((double)(ai) * (double)(pktSize))));
         newWind = std::min(maxWindSize, newWind);
-        logFile << simTime() << " cur wind: " << curWind << " increased cwnd: " << newWind << " max: " << maxWindSize << std::endl;
     }
-    else{
+    else {
         double redFactor = (md * ((currRtt/targetDelay) - 1));
         newWind = (int)(((double)(curWind)) *  (1.0 - redFactor));
         newWind = std::max(minWindSize, newWind);
         assert(newWind <= curWind);
         // window only reduced once per RTT
-        if(lastReducedWind.find(sAddr) == lastReducedWind.end()){
+        if (lastReducedWind.find(sAddr) == lastReducedWind.end()){
             lastReducedWind.insert(std::pair<inet::L3Address,simtime_t>(sAddr,simTime()));
-            logFile << simTime() << " reduced1 cwnd: " << newWind << std::endl;
         }
-        else{
+        else {
             auto lastReducedTime = lastReducedWind.find(sAddr)->second;
             assert(simTime().dbl() - lastReducedTime.dbl() >= 0);
-            if(simTime().dbl() - lastReducedTime.dbl() < baseRtt){
+            if (simTime().dbl() - lastReducedTime.dbl() < baseRtt){
                 newWind = curWind;
                 //not changed in this case
             }
-            else{
+            else {
                 lastReducedWind.find(sAddr)->second = simTime();
-                logFile << simTime() << " reduced2 cwnd: " << newWind << std::endl;
             } 
         }
     }
@@ -2129,12 +2069,10 @@ VectioTransport::calculateBaseRtt(){
 
     double msgSerializationDelay =
             1e-9 * ((totalBytesTranmitted << 3) * 1.0 / nicLinkSpeed);
-    // logFile << " total bytes: " << totalBytesTranmitted << " " <<  " msgdelay: " << msgSerializationDelay << std::endl;
 
     // There's always two hostSwTurnAroundTime and one nicThinkTime involved
     // in ideal latency for the overhead.
     double hostDelayOverheads = 2 * hostSwTurnAroundTime + hostNicSxThinkTime;
-    // logFile << " hostdelay: " << hostDelayOverheads << std::endl;
 
     // Depending on if the switch model is store-forward (omnet++ default model)
     // or cutthrough (as we implemented), the switch serialization delay would
@@ -2180,7 +2118,6 @@ VectioTransport::calculateBaseRtt(){
 
     // Add 2 edge link delays and 4 fabric link delays
     totalSwitchDelay += (2 * edgeLinkDelay + 4 * fabricLinkDelay);
-    // logFile << " switchdelay3: " << totalSwitchDelay << std::endl;
 
 
 

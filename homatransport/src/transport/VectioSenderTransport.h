@@ -204,7 +204,8 @@ class VectioSenderTransport : public cSimpleModule
     //use this instead of outbound grant queue
     //whenever you're ready to send any grant, find the message to send the 
     //grant to using the desired scheduling criteria
-    typedef std::map<uint64_t, std::set<std::pair<inet::L3Address,int>>> PendingMsgsToGrant;
+    typedef std::map<uint64_t, std::set<std::pair<inet::L3Address,int>>> 
+            PendingMsgsToGrant;
     PendingMsgsToGrant pendingMsgsToGrant;
 
     typedef std::map<uint64_t, int> PendingMsgsToSend;

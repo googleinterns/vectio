@@ -117,7 +117,6 @@ class VectioTransport : public cSimpleModule
         uint64_t msgIdAtSender;
         simtime_t msgCreationTime;
         double retxTimeout = 10000000.0e-6;
-        // int grantSizeBytes = 1000; //TODO -- get this value from the parent class automatically
         int largestPktSeqRcvd = -1;
         int largestByteRcvd = -1;
         VectioTransport* transport;
@@ -145,7 +144,6 @@ class VectioTransport : public cSimpleModule
         inet::L3Address destAddr;
         uint64_t msgIdAtSender;
         simtime_t msgCreationTime;
-        // int grantSizeBytes = 1000; //TODO -- get this value from the parent class automatically
         uint16_t schedPrio;
     };
 
@@ -203,7 +201,8 @@ class VectioTransport : public cSimpleModule
     //use this instead of outbound grant queue
     //whenever you're ready to send any grant, find the message to send the 
     //grant to using the desired scheduling criteria
-    typedef std::map<uint64_t, std::set<std::pair<inet::L3Address,int>>> PendingMsgsToGrant;
+    typedef std::map<uint64_t, std::set<std::pair<inet::L3Address,int>>> 
+            PendingMsgsToGrant;
     PendingMsgsToGrant pendingMsgsToGrant;
 
     typedef std::map<uint64_t, int> PendingMsgsToSend;
@@ -215,8 +214,10 @@ class VectioTransport : public cSimpleModule
     double currentRtt = 2.5 * 2.0 * 1.6e-6;
 
     // max allowed inflight grant bytes per receiver
-    int allowedInFlightGrantedBytes = ((int)(2.5 * 2.0 * 1.6e-6 * 10e9 / 8.0));
-    int allowedInFlightGrantedBytesIntraPod = ((int)(2.5 * 2.0 * 1.6e-6 * 10e9 / 8.0));
+    int allowedInFlightGrantedBytes = 
+            ((int)(2.5 * 2.0 * 1.6e-6 * 10e9 / 8.0));
+    int allowedInFlightGrantedBytesIntraPod = 
+            ((int)(2.5 * 2.0 * 1.6e-6 * 10e9 / 8.0));
 
     double baseRtt = 2.5 * 2.0 * 1.6e-6;
     double baseRttIntraPod = 1.5 * 2.0 * 1.6e-6;
@@ -228,7 +229,8 @@ class VectioTransport : public cSimpleModule
 
     // for each sender, stores a pair of current actively granted msg and
     // bytes remaining to grant
-    typedef std::map<inet::L3Address,std::pair<uint64_t,int>> SenderActiveGrantedMsg;
+    typedef std::map<inet::L3Address,std::pair<uint64_t,int>> 
+            SenderActiveGrantedMsg;
     SenderActiveGrantedMsg senderActiveGrantedMsg;
 
     int degOverComm = 8; 
@@ -249,7 +251,8 @@ class VectioTransport : public cSimpleModule
     typedef std::map<inet::L3Address,std::set<uint64_t>> GrantedMsgsPerSender;
     GrantedMsgsPerSender grantedMsgsPerSender;
 
-    double lastHeardThreshold = 3.0 * 2.5 * 2.0 * 1.6e-6;//3RTT for now
+    double lastHeardThreshold = 
+            3.0 * 2.5 * 2.0 * 1.6e-6;
 
     double ai = 1.0;
     double md = 0.25;

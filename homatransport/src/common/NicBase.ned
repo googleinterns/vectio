@@ -61,6 +61,7 @@ module NicBase extends NodeBase
         int degOverComm;
         string logFile;
         string switchLogFile;
+        string resourceFileName;
         string transportSchedulingPolicy;
         bool congCtrl;
         double ai;
@@ -86,6 +87,7 @@ module NicBase extends NodeBase
                 degOverComm = degOverComm;
                 logFile = logFile;
                 switchLogFile = switchLogFile;
+                resourceFileName = resourceFileName;
                 transportSchedulingPolicy = transportSchedulingPolicy;
                 congCtrl = congCtrl;
                 ai = ai;

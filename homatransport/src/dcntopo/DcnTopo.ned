@@ -92,6 +92,7 @@ network DcnTopo
         string switchLogFile = default("switch.log");
         string outputFileName = default("fcts.txt");
         string workloadFileName = default("flows.txt");
+        string resourceFileName = default("flows.rsc");
         string transportSchedulingPolicy = default("SRPT");
         bool congCtrl = default(true);
         double ai = default(1);
@@ -140,6 +141,7 @@ network DcnTopo
             degOverComm = degOverComm;
             logFile = logFile;
             switchLogFile = switchLogFile;
+            resourceFileName = resourceFileName;
             transportSchedulingPolicy = transportSchedulingPolicy;
             congCtrl = congCtrl;
             ai = ai;

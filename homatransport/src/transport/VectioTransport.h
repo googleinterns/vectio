@@ -116,7 +116,7 @@ class VectioTransport : public cSimpleModule
         inet::L3Address destAddr;
         uint64_t msgIdAtSender;
         simtime_t msgCreationTime;
-        double retxTimeout = 10000000.0e-6;
+        double retxTimeout = 50.0e-6;
         int largestPktSeqRcvd = -1;
         int largestByteRcvd = -1;
         VectioTransport* transport;
@@ -265,6 +265,10 @@ class VectioTransport : public cSimpleModule
     WindPerSender windPerSender;
     typedef std::map<inet::L3Address, simtime_t> LastReducedWind;
     LastReducedWind lastReducedWind;
+    typedef std::map<inet::L3Address, int> ActiveMsgsPerHost;
+    ActiveMsgsPerHost activeMsgsPerSender; //used for nic resource logging
+    ActiveMsgsPerHost activeMsgsPerReceiver;
+    int oooBytesAtReceiver = 0; //keeps account of total OOO bytes at receiver
     double queueingDelayFactor = 2.0;
 
     double edgeLinkDelay;
@@ -282,6 +286,12 @@ class VectioTransport : public cSimpleModule
 
     std::string transportSchedulingPolicy;
     bool congCtrl = true;
+
+    int maxNumActiveMsgsReceiver = 0;
+    int maxNumActiveMsgsSender = 0;
+    int maxNumActiveReceivers = 0;
+    int maxNumActiveSenders = 0;
+    int maxOOOBytesAtReceiver = 0;
     public:
       int grantSizeBytes = 1000;
 };

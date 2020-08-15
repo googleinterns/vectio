@@ -66,6 +66,7 @@ class VectioSenderTransport : public cSimpleModule
     // virtual void processPendingMsgsToAck();
     virtual void processPendingMsgsToSend();
     virtual void processRetxTimer(TimerContext* timerContext);
+    virtual void processOutboundRetxTimer(TimerContext* timerContext);
     virtual void processSendQueue();
     virtual void finish();
 
@@ -89,7 +90,8 @@ class VectioSenderTransport : public cSimpleModule
         OUTBOUNDQUEUE = 4, // Timer type when the transport wants to process the 
                        // grant queue
         RETXTIMER = 5,
-        SENDQUEUE = 6
+        SENDQUEUE = 6,
+        OUTBOUNDRETXTIMER = 7
     };
 
     class InboundMsg
@@ -116,7 +118,7 @@ class VectioSenderTransport : public cSimpleModule
         inet::L3Address destAddr;
         uint64_t msgIdAtSender;
         simtime_t msgCreationTime;
-        double retxTimeout = 10000000.0e-6;
+        double retxTimeout = 50.0e-6;
         // int grantSizeBytes = 1000; //TODO -- get this value from the parent class automatically
         int largestPktSeqRcvd = -1;
         int largestByteRcvd = -1;
@@ -145,6 +147,8 @@ class VectioSenderTransport : public cSimpleModule
         inet::L3Address destAddr;
         uint64_t msgIdAtSender;
         simtime_t msgCreationTime;
+        double retxTimeout = 50e-6;
+        int largestByteAcked = -1;
         // int grantSizeBytes = 1000; //TODO -- get this value from the parent class automatically
         uint16_t schedPrio;
         int bytesAcked = 0;

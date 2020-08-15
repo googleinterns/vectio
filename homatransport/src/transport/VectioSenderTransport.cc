@@ -198,6 +198,13 @@ VectioSenderTransport::handleMessage(cMessage *msg)
                 processRetxTimer(timerContext);
                 break;
             }
+            case SelfMsgKind::OUTBOUNDRETXTIMER:
+            {
+                TimerContext* timerContext = 
+                ((TimerContext*) (msg->getContextPointer()));
+                processOutboundRetxTimer(timerContext);
+                break;
+            }
             case SelfMsgKind::SENDQUEUE:
                 processSendQueue();
                 break;
@@ -251,6 +258,18 @@ VectioSenderTransport::processMsgFromApp(AppMessage* sendMsg)
 
     this->incompleteSxMsgsMap.insert(
         std::pair<uint64_t,OutboundMsg*>(msgId,outboundSxMsg));
+
+    TimerContext* timerContext = new TimerContext();
+    timerContext->msgIdAtSender = outboundSxMsg->msgIdAtSender;
+    timerContext->srcAddr = outboundSxMsg->srcAddr;
+    timerContext->destAddr = outboundSxMsg->destAddr;
+
+    outboundSxMsg->retxTimeout += 10 * bytesToSend * 8.0 / nicLinkSpeed;
+
+    cMessage* retxTimer = new cMessage();
+    retxTimer->setKind(SelfMsgKind::OUTBOUNDRETXTIMER);
+    retxTimer->setContextPointer(timerContext);
+    scheduleAt(simTime() + outboundSxMsg->retxTimeout,retxTimer);
 
     delete sendMsg;
 
@@ -313,7 +332,7 @@ VectioSenderTransport::processRcvdPkt(HomaPkt* rxPkt)
 void
 VectioSenderTransport::processDataPkt(HomaPkt* rxPkt)
 {
-    if (logEvents && rxPkt->getMsgId() == 288) {
+    if (rxPkt->getMsgId() == 450) {
         logFile << simTime() << " Received data pkt for msg: " 
         << rxPkt->getMsgId() << " at the receiver: " << rxPkt->getDestAddr() 
         << " size: " << rxPkt->getDataBytes() << " scheduled at: " 
@@ -368,6 +387,8 @@ VectioSenderTransport::processDataPkt(HomaPkt* rxPkt)
         timerContext->msgIdAtSender = rxPkt->getMsgId();
         timerContext->srcAddr = rxPkt->getSrcAddr();
         timerContext->destAddr = rxPkt->getDestAddr();
+
+        inboundRxMsg->retxTimeout += 10 * bytesToSend * 8.0 / nicLinkSpeed;
 
         cMessage* retxTimer = new cMessage();
         retxTimer->setKind(SelfMsgKind::RETXTIMER);
@@ -431,6 +452,9 @@ VectioSenderTransport::processAckPkt(HomaPkt* rxPkt)
     assert(it != incompleteSxMsgsMap.end());
     
     it->second->bytesAcked += pktBytes;
+    if(schedFields.lastByte > it->second->largestByteAcked){
+        it->second->largestByteAcked = schedFields.lastByte;
+    }
     assert(it->second->bytesAcked <= it->second->msgByteLen);
     if (it->second->bytesAcked == it->second->msgByteLen){
         incompleteSxMsgsMap.erase(it);
@@ -622,6 +646,21 @@ VectioSenderTransport::extractDataPkt(const char* schedulingPolicy){
         uint16_t assignedPrio = 2;
 
         do{
+            cModule* parentHost = this->getParentModule();
+
+            if (strcmp(parentHost->getName(),"nic") == 0 
+            && parentHost->getIndex() == 46){
+                logFile << simTime() << " Looping over pending msgs to send: " 
+                << " (receivers to exclude: ";
+                if (receiversToExclude.empty()){
+                    logFile << "none";
+                }
+                for (auto steItr = receiversToExclude.begin(); steItr != 
+                receiversToExclude.end(); steItr++){
+                    logFile << *steItr << " ";
+                }
+                // logFile << std::endl;
+            }
 
             // find the message with the smallest remaining bytes to send first
             int minBytesToSend = INT_MAX;
@@ -633,6 +672,12 @@ VectioSenderTransport::extractDataPkt(const char* schedulingPolicy){
             itr++) {
                 uint64_t messageID = itr->first; 
                 int bytesToSend = itr->second;
+                if (strcmp(parentHost->getName(),"nic") == 0 && 
+                    parentHost->getIndex() == 46){
+                        logFile << " id:" << messageID
+                         << " bts:" << bytesToSend 
+                         << " ::::: ";
+                    }
                 if (bytesToSend == 0){
                     continue;
                 }
@@ -704,12 +749,29 @@ VectioSenderTransport::extractDataPkt(const char* schedulingPolicy){
             receiverInFlightBytes.end());
             auto receiverBytesItr = receiverInFlightBytes.find(chosenDestAddr);
 
+            if (strcmp(parentHost->getName(),"nic") == 0 && 
+                    parentHost->getIndex() == 46){
+                        logFile << " temp chosen id:" << chosenMsgId
+                        << " dest: " << chosenDestAddr << " inflight: " << receiverBytesItr->second
+                        << " wind: " <<  windPerDest.find(chosenDestAddr)->second;
+                    }
+
             if (receiverBytesItr->second > windPerDest.find(
                 chosenDestAddr)->second){
                 receiversToExclude.insert(chosenDestAddr);
                 assignedPrio++;
+                if (strcmp(parentHost->getName(),"nic") == 0 && 
+                    parentHost->getIndex() == 46){
+                        logFile << " not chosen"
+                         << std::endl;
+                    }
             }
             else{
+                if (strcmp(parentHost->getName(),"nic") == 0 && 
+                    parentHost->getIndex() == 46){
+                        logFile << " chosen id:" << chosenMsgId
+                         << std::endl;
+                    }
                 break;
             }
 
@@ -1018,6 +1080,57 @@ VectioSenderTransport::processRetxTimer(TimerContext* timerContext)
 
 }
 
+void
+VectioSenderTransport::processOutboundRetxTimer(TimerContext* timerContext)
+{
+
+    uint64_t msgId = timerContext->msgIdAtSender;
+    if(incompleteSxMsgsMap.find(msgId) != incompleteSxMsgsMap.end()){
+        OutboundMsg* outboundMsg = incompleteSxMsgsMap.find(msgId)->second;
+        int lastByteSent = outboundMsg->nextByteToSend - 1;
+        int lastByteAcked = outboundMsg->largestByteAcked;
+        if(lastByteAcked < lastByteSent){
+            for (int newFirstByte=lastByteAcked+1; 
+            newFirstByte <= lastByteSent; 
+            newFirstByte = newFirstByte + grantSizeBytes){
+                HomaPkt* resentPkt = new HomaPkt();
+                resentPkt->setPktType(PktType::SCHED_DATA);
+                resentPkt->setSrcAddr(outboundMsg->srcAddr);
+                resentPkt->setDestAddr(outboundMsg->destAddr);
+                resentPkt->setMsgId(msgId);
+                resentPkt->setPriority(2);
+                SchedDataFields schedFields;
+                uint32_t firstByte = newFirstByte;
+                uint32_t lastByte = firstByte + grantSizeBytes - 1;
+                if (lastByte > lastByteSent){
+                    lastByte = lastByteSent;
+                }
+                schedFields.firstByte = firstByte;
+                schedFields.lastByte = lastByte;
+                resentPkt->setSchedDataFields(schedFields);
+                resentPkt->setTimestamp(simTime());
+                socket.sendTo(resentPkt,resentPkt->getDestAddr(),
+                destPort);
+            }
+        }
+
+        //create new event here
+
+        TimerContext* timerContext = new TimerContext();
+        timerContext->msgIdAtSender = outboundMsg->msgIdAtSender;
+        timerContext->srcAddr = outboundMsg->srcAddr;
+        timerContext->destAddr = outboundMsg->destAddr;
+
+        cMessage* retxTimer = new cMessage();
+        retxTimer->setKind(SelfMsgKind::OUTBOUNDRETXTIMER);
+        retxTimer->setContextPointer(timerContext);
+        scheduleAt(simTime() + outboundMsg->retxTimeout,retxTimer);
+    }
+
+    return;
+
+}
+
 VectioSenderTransport::InboundMsg::InboundMsg()
     : numBytesToRecv(0)
     , msgByteLen(0)
@@ -1091,30 +1204,30 @@ VectioSenderTransport::InboundMsg::checkAndSendNack()
                 transport->destPort);
             }
         }
-        if (largestByteRcvd < bytesGranted - 1) {
-            // send a NACK for every last unrcvd packet
-            for (int newFirstByte=largestByteRcvd+1; 
-            newFirstByte <= bytesGranted-1; 
-            newFirstByte = newFirstByte + transport->grantSizeBytes){
-                HomaPkt* nackPkt = new HomaPkt();
-                nackPkt->setPktType(PktType::NACK);
-                nackPkt->setSrcAddr(destAddr);
-                nackPkt->setDestAddr(srcAddr);
-                nackPkt->setMsgId(msgIdAtSender);
-                nackPkt->setPriority(0);
-                SchedDataFields schedFields;
-                uint32_t firstByte = newFirstByte;
-                uint32_t lastByte = firstByte + transport->grantSizeBytes - 1;
-                if (lastByte + 1 > bytesGranted){
-                    lastByte = bytesGranted - 1;
-                }
-                schedFields.firstByte = firstByte;
-                schedFields.lastByte = lastByte;
-                nackPkt->setSchedDataFields(schedFields);
-                transport->socket.sendTo(nackPkt,nackPkt->getDestAddr(),
-                transport->destPort);
-            }
-        }
+        // if (largestByteRcvd < bytesGranted - 1) {
+        //     // send a NACK for every last unrcvd packet
+        //     for (int newFirstByte=largestByteRcvd+1; 
+        //     newFirstByte <= bytesGranted-1; 
+        //     newFirstByte = newFirstByte + transport->grantSizeBytes){
+        //         HomaPkt* nackPkt = new HomaPkt();
+        //         nackPkt->setPktType(PktType::NACK);
+        //         nackPkt->setSrcAddr(destAddr);
+        //         nackPkt->setDestAddr(srcAddr);
+        //         nackPkt->setMsgId(msgIdAtSender);
+        //         nackPkt->setPriority(0);
+        //         SchedDataFields schedFields;
+        //         uint32_t firstByte = newFirstByte;
+        //         uint32_t lastByte = firstByte + transport->grantSizeBytes - 1;
+        //         if (lastByte + 1 > bytesGranted){
+        //             lastByte = bytesGranted - 1;
+        //         }
+        //         schedFields.firstByte = firstByte;
+        //         schedFields.lastByte = lastByte;
+        //         nackPkt->setSchedDataFields(schedFields);
+        //         transport->socket.sendTo(nackPkt,nackPkt->getDestAddr(),
+        //         transport->destPort);
+        //     }
+        // }
 
         // create timer for checking again
         TimerContext* timerContext = new TimerContext();

@@ -30,6 +30,7 @@ simple VectioSenderTransport like ITransportScheme
         int fabricLinkSpeed @unit(Gbps) = default(10Gbps);
         string logFile = default("output.log");
         string switchLogFile = default("switch.log");
+        string resourceFileName = default("flows.rsc");
         bool logEvents = default(false);
 
         double edgeLinkDelay @unit(us);

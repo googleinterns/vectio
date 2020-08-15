@@ -30,6 +30,7 @@ Define_Module(VectioTransport);
 
 std::ofstream logFile;
 std::ofstream logFile2;
+std::ofstream resourceLogFile;
 bool logPacketEvents = true;
 
 VectioTransport::VectioTransport()
@@ -100,6 +101,12 @@ VectioTransport::initialize()
                 "results/") + std::string(par("switchLogFile").stringValue());
     if (!logFile2.is_open()) {
         logFile2.open(LogFile2Name);
+    }
+
+    std::string ResourceLogFileName = std::string(
+                "results/") + std::string(par("resourceFileName").stringValue());
+    if (!resourceLogFile.is_open()) {
+        resourceLogFile.open(ResourceLogFileName);
     }
 
     logEvents = par("logEvents");
@@ -256,6 +263,9 @@ VectioTransport::processMsgFromApp(AppMessage* sendMsg)
 
     this->incompleteSxMsgsMap.insert(
         std::pair<uint64_t,OutboundMsg*>(msgId,outboundSxMsg));
+    if(incompleteSxMsgsMap.size() > maxNumActiveMsgsSender){
+        maxNumActiveMsgsSender = incompleteSxMsgsMap.size();
+    }
 
     // Create and forward a request packet for this outbound message
     uint32_t pktDataBytes = 1;
@@ -386,6 +396,9 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
 
     // add the message to the map if it doesn't exist
     if (!inboundRxMsg) {
+        if(incompleteRxMsgsMap.size() > maxNumActiveMsgsReceiver){
+            maxNumActiveMsgsReceiver = incompleteRxMsgsMap.size();
+        }
         inboundRxMsg = new InboundMsg(rxPkt, this); 
         rxMsgList.push_front(inboundRxMsg);
 
@@ -436,6 +449,8 @@ VectioTransport::processReqPkt(HomaPkt* rxPkt)
         timerContext->msgIdAtSender = rxPkt->getMsgId();
         timerContext->srcAddr = rxPkt->getSrcAddr();
         timerContext->destAddr = rxPkt->getDestAddr();
+
+        inboundRxMsg->retxTimeout += 10 * bytesToSend * 8.0 / nicLinkSpeed;
 
         cMessage* retxTimer = new cMessage();
         retxTimer->setKind(SelfMsgKind::RETXTIMER);
@@ -532,6 +547,9 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
     }
 
     if (!inboundRxMsg) {
+        if(incompleteRxMsgsMap.size() > maxNumActiveMsgsReceiver){
+            maxNumActiveMsgsReceiver = incompleteRxMsgsMap.size();
+        }
         //if msg already finished, this probably a duplicate packet, 
         // nothing to do, discard the pkt
         auto itr = finishedMsgs.find(rxPkt->getMsgId());
@@ -612,10 +630,77 @@ VectioTransport::processDataPkt(HomaPkt* rxPkt)
         timerContext->srcAddr = rxPkt->getSrcAddr();
         timerContext->destAddr = rxPkt->getDestAddr();
 
+        inboundRxMsg->retxTimeout += 10 * bytesToSend * 8.0 / nicLinkSpeed;
+
         cMessage* retxTimer = new cMessage();
         retxTimer->setKind(SelfMsgKind::RETXTIMER);
         retxTimer->setContextPointer(timerContext);
         scheduleAt(simTime() + inboundRxMsg->retxTimeout,retxTimer);
+
+        //log resource usage to the resourceLogFile
+        // log the number of active messages, number of active senders, 
+        // and total bytes of missed pkts
+
+        int numActiveMsgsReceiver = 0;
+        int numActiveMsgsSender = 0;
+        int numActiveReceivers = 0;
+        int numActiveSenders = 0;
+
+        numActiveMsgsReceiver = incompleteRxMsgsMap.size();
+        if(incompleteRxMsgsMap.empty() == true){
+            numActiveMsgsReceiver = 0;
+        }
+
+        numActiveMsgsSender = incompleteSxMsgsMap.size();
+        if(incompleteSxMsgsMap.empty() == true){
+            numActiveMsgsSender = 0;
+        }
+
+        std::set<inet::L3Address> activeSendersPerReceiver;
+        std::set<inet::L3Address> activeReceiversPerSender;
+
+        activeSendersPerReceiver.clear();
+        activeReceiversPerSender.clear();
+
+        for(auto i=incompleteRxMsgsMap.begin();i!=incompleteRxMsgsMap.end();i++){
+            if(i->second.empty() != true){
+            activeSendersPerReceiver.insert((*(i->second.begin()))->srcAddr);
+            }
+        }
+
+        for(auto i=incompleteSxMsgsMap.begin();i!=incompleteSxMsgsMap.end();i++){
+            activeReceiversPerSender.insert(i->second->destAddr);
+        }
+
+        numActiveSenders = activeSendersPerReceiver.size();
+        numActiveReceivers = activeReceiversPerSender.size();
+
+        if(numActiveMsgsReceiver > maxNumActiveMsgsReceiver){
+            maxNumActiveMsgsReceiver = numActiveMsgsReceiver;
+        }
+        if(numActiveMsgsSender > maxNumActiveMsgsSender){
+            maxNumActiveMsgsSender = numActiveMsgsSender;
+        }
+        if(numActiveReceivers > maxNumActiveReceivers){
+            maxNumActiveReceivers = numActiveReceivers;
+        }
+        if(numActiveSenders > maxNumActiveSenders){
+            maxNumActiveSenders = numActiveSenders;
+        }
+
+        resourceLogFile << simTime()
+        << " " << srcAddress
+        << " " << numActiveMsgsReceiver 
+        << " " << maxNumActiveMsgsReceiver
+        << " " << numActiveMsgsSender 
+        << " " << maxNumActiveMsgsSender
+        << " " << numActiveReceivers 
+        << " " << maxNumActiveReceivers
+        << " " << numActiveSenders
+        << " " << maxNumActiveSenders
+        << " " << oooBytesAtReceiver
+        << " " << maxOOOBytesAtReceiver
+        << std::endl;
 
     }
 
@@ -1231,28 +1316,28 @@ VectioTransport::extractGrantPkt(const char* schedulingPolicy){
             
             // if not heard from the chosen sender until the threshold time
             // reset the senderInFlightBytes counter and the total bytes in flight counter
-            auto itrLastHeard = this->lastHeardFromSender.find(chosenSrcAddr);
-            auto itrLastGrant = this->lastGrantSentToSender.find(chosenSrcAddr);
-            if (itrLastHeard != this->lastHeardFromSender.end() &&
-            itrLastGrant != this->lastGrantSentToSender.end()){
-                simtime_t lastHeardTime = itrLastHeard->second;
-                simtime_t lastGrantTime = itrLastGrant->second;
-                if ((lastGrantTime > lastHeardTime) &&
-                (senderBytesItr->second > 0)  && 
-                (simTime() - lastGrantTime >= this->lastHeardThreshold) &&
-                (simTime() - lastHeardTime >= this->lastHeardThreshold)){
-                    auto itrGrantedMsgs = this->grantedMsgsPerSender.find(chosenSrcAddr);
-                    assert(itrGrantedMsgs != this->grantedMsgsPerSender.end());
-                    if (itrGrantedMsgs->second.find(chosenMsgId) == itrGrantedMsgs->second.end()){
-                        this->extraGrantedBytes += senderBytesItr->second;
-                        currentRcvInFlightGrantBytes -= senderBytesItr->second;
-                        senderBytesItr->second = 0;
-                        assert(currentRcvInFlightGrantBytes >= 0);
-                        assert(simTime() - lastHeardTime >= 0);
-                        itrLastHeard->second = simTime();
-                    }
-                }
-            }
+            // auto itrLastHeard = this->lastHeardFromSender.find(chosenSrcAddr);
+            // auto itrLastGrant = this->lastGrantSentToSender.find(chosenSrcAddr);
+            // if (itrLastHeard != this->lastHeardFromSender.end() &&
+            // itrLastGrant != this->lastGrantSentToSender.end()){
+            //     simtime_t lastHeardTime = itrLastHeard->second;
+            //     simtime_t lastGrantTime = itrLastGrant->second;
+            //     if ((lastGrantTime > lastHeardTime) &&
+            //     (senderBytesItr->second > 0)  && 
+            //     (simTime() - lastGrantTime >= this->lastHeardThreshold) &&
+            //     (simTime() - lastHeardTime >= this->lastHeardThreshold)){
+            //         auto itrGrantedMsgs = this->grantedMsgsPerSender.find(chosenSrcAddr);
+            //         assert(itrGrantedMsgs != this->grantedMsgsPerSender.end());
+            //         if (itrGrantedMsgs->second.find(chosenMsgId) == itrGrantedMsgs->second.end()){
+            //             this->extraGrantedBytes += senderBytesItr->second;
+            //             currentRcvInFlightGrantBytes -= senderBytesItr->second;
+            //             senderBytesItr->second = 0;
+            //             assert(currentRcvInFlightGrantBytes >= 0);
+            //             assert(simTime() - lastHeardTime >= 0);
+            //             itrLastHeard->second = simTime();
+            //         }
+            //     }
+            // }
 
             assert(windPerSender.find(chosenSrcAddr) != windPerSender.end());
 
@@ -1629,18 +1714,18 @@ VectioTransport::InboundMsg::checkAndSendNack()
         return;
         //assert the message is finished
     }
-    else if (bytesGranted < msgByteLen) {
-        TimerContext* timerContext = new TimerContext();
-        timerContext->msgIdAtSender = msgIdAtSender;
-        timerContext->srcAddr = srcAddr;
-        timerContext->destAddr = destAddr;
+    // else if (bytesGranted < msgByteLen) {
+    //     TimerContext* timerContext = new TimerContext();
+    //     timerContext->msgIdAtSender = msgIdAtSender;
+    //     timerContext->srcAddr = srcAddr;
+    //     timerContext->destAddr = destAddr;
 
-        cMessage* retxTimer = new cMessage();
-        retxTimer->setKind(SelfMsgKind::RETXTIMER);
-        retxTimer->setContextPointer(timerContext);
-        transport->scheduleAt(simTime() + retxTimeout,retxTimer);
-        return;
-    }
+    //     cMessage* retxTimer = new cMessage();
+    //     retxTimer->setKind(SelfMsgKind::RETXTIMER);
+    //     retxTimer->setContextPointer(timerContext);
+    //     transport->scheduleAt(simTime() + retxTimeout,retxTimer);
+    //     return;
+    // }
     else {
         if (missedPkts.size() > 0) {
             // send a NACK for every missed packet
@@ -1727,6 +1812,10 @@ VectioTransport::InboundMsg::updateRxAndMissedPkts(int pktSeqNo)
             auto itr = missedPkts.find(i);
             assert(itr == missedPkts.end());
             missedPkts.insert(std::pair<int,simtime_t>(i,simTime()));
+            transport->oooBytesAtReceiver += transport->grantSizeBytes;
+            if(transport->oooBytesAtReceiver > transport->maxOOOBytesAtReceiver){
+                transport->maxOOOBytesAtReceiver = transport->oooBytesAtReceiver;
+            }
         }
         return false;
     }
@@ -1735,6 +1824,8 @@ VectioTransport::InboundMsg::updateRxAndMissedPkts(int pktSeqNo)
         auto itr = missedPkts.find(pktSeqNo);
         if (itr != missedPkts.end()){
             missedPkts.erase(itr);
+            transport->oooBytesAtReceiver -= transport->grantSizeBytes;
+            assert(transport->oooBytesAtReceiver >= 0);
             return false;
         }
         else {

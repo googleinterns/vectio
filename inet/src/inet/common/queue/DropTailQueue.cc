@@ -75,6 +75,7 @@ cMessage *DropTailQueue::enqueue(cMessage *msg)
     }
 
     logFile2 << simTime() << " queue: " << queue.length() << " frameCapacity: " << frameCapacity << std::endl;
+    bool drop = false;
 
     if (frameCapacity && queue.length() >= frameCapacity) {
         EV << "Queue full, dropping packet.\n";
@@ -108,9 +109,28 @@ cMessage *DropTailQueue::enqueue(cMessage *msg)
                         logFile2 << simTime() << "HomaPkt arrived at the queue has unknown type. " << homaPkt->getPktType() << " " << std::endl;
                         logFile2.flush();
                 }
+                switch (homaPkt->getPktType()) {
+                    case PktType::REQUEST:
+                        drop = false;
+                        break;
+                    case PktType::GRANT:
+                        drop = false;
+                        break;
+                    case PktType::SCHED_DATA:
+                        drop = true;
+                        break;
+                    case PktType::UNSCHED_DATA:
+                        drop = false;
+                        break;
+                    default:
+                        drop = false;
+                        break;
+                }
             // }
         }
-        return msg;
+        if(drop == true){
+            return msg;
+        }
     }
 
     // at the queueing time, we check how much of the previous transmitting

@@ -264,7 +264,7 @@ VectioSenderTransport::processMsgFromApp(AppMessage* sendMsg)
     timerContext->srcAddr = outboundSxMsg->srcAddr;
     timerContext->destAddr = outboundSxMsg->destAddr;
 
-    outboundSxMsg->retxTimeout += 10 * bytesToSend * 8.0 / nicLinkSpeed;
+    outboundSxMsg->retxTimeout += 1000000 * bytesToSend * 8.0 / nicLinkSpeed;
 
     cMessage* retxTimer = new cMessage();
     retxTimer->setKind(SelfMsgKind::OUTBOUNDRETXTIMER);
@@ -1094,12 +1094,12 @@ VectioSenderTransport::processOutboundRetxTimer(TimerContext* timerContext)
             newFirstByte <= lastByteSent; 
             newFirstByte = newFirstByte + grantSizeBytes){
                 HomaPkt* resentPkt = new HomaPkt();
-                resentPkt->setPktType(PktType::SCHED_DATA);
+                resentPkt->setPktType(PktType::UNSCHED_DATA);
                 resentPkt->setSrcAddr(outboundMsg->srcAddr);
                 resentPkt->setDestAddr(outboundMsg->destAddr);
                 resentPkt->setMsgId(msgId);
                 resentPkt->setPriority(2);
-                SchedDataFields schedFields;
+                UnschedFields schedFields;
                 uint32_t firstByte = newFirstByte;
                 uint32_t lastByte = firstByte + grantSizeBytes - 1;
                 if (lastByte > lastByteSent){
@@ -1107,7 +1107,7 @@ VectioSenderTransport::processOutboundRetxTimer(TimerContext* timerContext)
                 }
                 schedFields.firstByte = firstByte;
                 schedFields.lastByte = lastByte;
-                resentPkt->setSchedDataFields(schedFields);
+                resentPkt->setUnschedFields(schedFields);
                 resentPkt->setTimestamp(simTime());
                 socket.sendTo(resentPkt,resentPkt->getDestAddr(),
                 destPort);

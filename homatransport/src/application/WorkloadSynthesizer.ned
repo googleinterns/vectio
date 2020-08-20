@@ -41,11 +41,14 @@ simple WorkloadSynthesizer like ITrafficGeneratorApp
         bool isSingleSpeedFabric;
         double loadFactor;
 
+        string outputFileName;
+        string workloadFileName;
+
         // workload types from this set: {"DCTCP", "FACEBOOK_KEY_VALUE"}
         string workloadType = default("DCTCP");
         string interArrivalDist = default("exponential");
         string destAddresses = default("");
-        string resultFile = default("fcts.txt");
+        string resultFile = default("incast-test.txt");
         double startTime @unit(s) = default(0s);
         double stopTime @unit(s) = default(-1s);
         @display("i=block/app");

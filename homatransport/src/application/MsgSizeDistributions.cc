@@ -50,17 +50,18 @@ MsgSizeDistributions::MsgSizeDistributions(const char* distFileName,
         ASSERT(interArrivalDist == InterArrivalDist::INTERARRIVAL_IN_FILE);
         double dt = 0.0;
         std::string hostIdSizeInterarrivalLine;
+        int msgId;
         int srcHostId;
         int destHostId;
         int msgSize;
         double deltaTime;
         while (getline(distFileStream, hostIdSizeInterarrivalLine)) {
-            sscanf(hostIdSizeInterarrivalLine.c_str(), "%d %d %d %lf",
-                    &srcHostId, &destHostId, &msgSize, &deltaTime);
+            sscanf(hostIdSizeInterarrivalLine.c_str(), "%d %d %d %d %lf",
+                    &msgId, &srcHostId, &destHostId, &msgSize, &deltaTime);
             dt += deltaTime;
             if (srcHostId == callerHostId) {
                 msgSizeDestInterarrivalQueue.push(
-                    std::make_tuple(msgSize, destHostId, dt));
+                    std::make_tuple(msgId, msgSize, destHostId, dt));
                 dt = 0.0;
             }
         }
@@ -93,7 +94,7 @@ MsgSizeDistributions::MsgSizeDistributions(const char* distFileName,
 }
 
 void
-MsgSizeDistributions::getSizeAndInterarrival(int &msgSize, int &destHostId,
+MsgSizeDistributions::getSizeAndInterarrival(int &msgId, int &msgSize, int &destHostId,
         double &nextInterarrivalTime)
 {
     // Default value -1 if not destHostId is determined in the files. In which
@@ -115,7 +116,7 @@ MsgSizeDistributions::getSizeAndInterarrival(int &msgSize, int &destHostId,
             getFacebookSizeInterarrival(msgSize, nextInterarrivalTime);
             return;
         case DistributionChoice::SIZE_IN_FILE:
-            getInfileSizeInterarrivalDest(msgSize, destHostId, 
+            getInfileSizeInterarrivalDest(msgId, msgSize, destHostId, 
                 nextInterarrivalTime);
             return;
         default:
@@ -126,7 +127,7 @@ MsgSizeDistributions::getSizeAndInterarrival(int &msgSize, int &destHostId,
 }
 
 void
-MsgSizeDistributions::getInfileSizeInterarrivalDest(int &msgSize,
+MsgSizeDistributions::getInfileSizeInterarrivalDest(int &msgId, int &msgSize,
     int &destHostId, double &nextInterarrivalTime)
 {
     ASSERT(interArrivalDist == InterArrivalDist::INTERARRIVAL_IN_FILE);
@@ -137,9 +138,10 @@ MsgSizeDistributions::getInfileSizeInterarrivalDest(int &msgSize,
     }
 
     auto msgTuple = msgSizeDestInterarrivalQueue.front();
-    msgSize = std::get<0>(msgTuple);
-    destHostId = std::get<1>(msgTuple);
-    nextInterarrivalTime = std::get<2>(msgTuple);
+    msgId = std::get<0>(msgTuple);
+    msgSize = std::get<1>(msgTuple);
+    destHostId = std::get<2>(msgTuple);
+    nextInterarrivalTime = std::get<3>(msgTuple);
     msgSizeDestInterarrivalQueue.pop();
     return;
 }

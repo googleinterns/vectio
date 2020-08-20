@@ -54,6 +54,18 @@ module NicBase extends NodeBase
         double hostSwTurnAroundTime @unit(us);
         double hostNicSxThinkTime @unit(us);
         double switchFixDelay @unit(us);
+
+        bool isFabricCutThrough;
+        bool isSingleSpeedFabric;
+
+        int degOverComm;
+        string logFile;
+        string switchLogFile;
+        string resourceFileName;
+        string transportSchedulingPolicy;
+        bool congCtrl;
+        double ai;
+        double md;
     gates:
         input pcieIn;
         output pcieOut;
@@ -64,6 +76,22 @@ module NicBase extends NodeBase
                 @display("p=445,112");
                 transportConfig = xmldoc("config.xml", "/topologyConfig/hostConfig[@id=$PARENTMODULE_INDEX]/transportConfig");
                 nicLinkSpeed = nicLinkSpeed;
+                fabricLinkSpeed = fabricLinkSpeed;
+                edgeLinkDelay = edgeLinkDelay;
+                fabricLinkDelay = fabricLinkDelay;
+                hostSwTurnAroundTime = hostSwTurnAroundTime;
+                hostNicSxThinkTime = hostNicSxThinkTime;
+                switchFixDelay = switchFixDelay;
+                isFabricCutThrough = isFabricCutThrough;
+                isSingleSpeedFabric = isSingleSpeedFabric;
+                degOverComm = degOverComm;
+                logFile = logFile;
+                switchLogFile = switchLogFile;
+                resourceFileName = resourceFileName;
+                transportSchedulingPolicy = transportSchedulingPolicy;
+                congCtrl = congCtrl;
+                ai = ai;
+                md = md;
         }
 
         udp: <udpType> like IUDP if hasUdp {

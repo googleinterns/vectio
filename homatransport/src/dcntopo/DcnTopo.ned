@@ -87,6 +87,17 @@ network DcnTopo
         nic[*].eth[*].outputHook[*].hookType = "OutputHook";
         nic[*].eth[*].outputHook[*].delayPar = convertUnit(hostSwTurnAroundTime, "s");
 
+        int degOverComm = default(8);
+        string logFile = default("output.log");
+        string switchLogFile = default("switch.log");
+        string outputFileName = default("fcts.txt");
+        string workloadFileName = default("flows.txt");
+        string resourceFileName = default("flows.rsc");
+        string transportSchedulingPolicy = default("SRPT");
+        bool congCtrl = default(true);
+        double ai = default(1);
+        double md = default(0.25);
+
     types:
         channel FabricChannel extends DatarateChannel
         {
@@ -125,8 +136,16 @@ network DcnTopo
             hostSwTurnAroundTime = hostSwTurnAroundTime;
             hostNicSxThinkTime = hostNicSxThinkTime;
             switchFixDelay = switchFixDelay;
-            trafficGeneratorApp[*].isFabricCutThrough = isFabricCutThrough;
-            trafficGeneratorApp[*].isSingleSpeedFabric = (nicLinkSpeed == fabricLinkSpeed);
+            isFabricCutThrough = isFabricCutThrough;
+            isSingleSpeedFabric = (nicLinkSpeed == fabricLinkSpeed);
+            degOverComm = degOverComm;
+            logFile = logFile;
+            switchLogFile = switchLogFile;
+            resourceFileName = resourceFileName;
+            transportSchedulingPolicy = transportSchedulingPolicy;
+            congCtrl = congCtrl;
+            ai = ai;
+            md = md;
         }
 
         app[numHosts]: AppmasterBase {
@@ -141,6 +160,8 @@ network DcnTopo
             switchFixDelay = switchFixDelay;
             trafficGeneratorApp[*].isFabricCutThrough = isFabricCutThrough;
             trafficGeneratorApp[*].isSingleSpeedFabric = (nicLinkSpeed == fabricLinkSpeed);
+            outputFileName = outputFileName;
+            workloadFileName = workloadFileName;
         }
 
         configurator: IPv4NetworkConfigurator {

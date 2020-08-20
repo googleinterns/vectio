@@ -29,4 +29,7 @@ packet AppMessage {
      simtime_t transportSchedDelay;
      simtime_t transportSchedPreemptionLag;
      long msgBytesOnWire;
+     simtime_t firstPktSchedTime;
+     simtime_t firstPktEnqueueTime;
+     uint64_t msgId;
 }

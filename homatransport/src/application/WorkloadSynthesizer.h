@@ -70,6 +70,7 @@ class WorkloadSynthesizer : public cSimpleModule
     // states
     cMessage* selfMsg;
     inet::L3Address srcAddress;
+    int msgId;
     int sendMsgSize; // In bytes
     int nextDestHostId; // -1 means the destination must be chosen
                         // randomely based on config.xml information.
@@ -101,6 +102,9 @@ class WorkloadSynthesizer : public cSimpleModule
     // completed. The GlobalSignalListener is listener to this signal and
     // consumer of the object.
     static simsignal_t mesgStatsSignal;
+
+    std::string outputFileName;
+    std::string workloadFileName;
 
   protected:
     virtual void initialize();

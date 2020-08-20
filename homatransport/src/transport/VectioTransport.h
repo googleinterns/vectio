@@ -60,19 +60,21 @@ class VectioTransport : public cSimpleModule
     virtual void processMsgFromApp(AppMessage* sendMsg);
     virtual void processRcvdPkt(HomaPkt* rxPkt);
     virtual void processReqPkt(HomaPkt* rxPkt);
-    virtual void processGrantPkt(HomaPkt* rxPkt);
     virtual void processDataPkt(HomaPkt* rxPkt);
     virtual void processAckPkt(HomaPkt* rxPkt);
     virtual void processNackPkt(HomaPkt* rxPkt);
-    virtual void processInboundGrantQueue();
-    virtual void processOutboundGrantQueue();
     virtual void processPendingMsgsToGrant();
     virtual void processPendingMsgsToSend();
     virtual void processRetxTimer(TimerContext* timerContext);
+    virtual void processSendQueue();
     virtual void finish();
 
     virtual HomaPkt* extractGrantPkt(const char* schedulingPolicy);
     virtual HomaPkt* extractDataPkt(const char* schedulingPolicy);
+
+    virtual double calculateTargetDelay(inet::L3Address srcAddr, inet::L3Address destAddr);
+    virtual void adjustWindSize(inet::L3Address srcAddr, int pktSize);
+    virtual double calculateBaseRtt();
 
     /**
      * A self message essentially models a timer object for this transport and
@@ -82,11 +84,12 @@ class VectioTransport : public cSimpleModule
     {
         START = 1,  // Timer type when the transport is in initialization phase.
         STOP  = 2,   // Timer type when the transport is in cleaning phase.
-        IBGRANTQUEUE = 3, // Timer type when the transport wants to process the 
+        INBOUNDQUEUE = 3, // Timer type when the transport wants to process the 
                        // grant queue
-        OBGRANTQUEUE = 4, // Timer type when the transport wants to process the 
+        OUTBOUNDQUEUE = 4, // Timer type when the transport wants to process the 
                        // grant queue
-        RETXTIMER = 5
+        RETXTIMER = 5,
+        SENDQUEUE = 6
     };
 
     class InboundMsg
@@ -113,13 +116,15 @@ class VectioTransport : public cSimpleModule
         inet::L3Address destAddr;
         uint64_t msgIdAtSender;
         simtime_t msgCreationTime;
-        double retxTimeout = 10.0e-6;
-        // int grantSizeBytes = 1000; //TODO -- get this value from the parent class automatically
+        double retxTimeout = 50.0e-6;
         int largestPktSeqRcvd = -1;
         int largestByteRcvd = -1;
         VectioTransport* transport;
         int bytesGranted = -1;
         int bytesInFlight = -1;
+        // simtime_t firstPktSentTime;
+        simtime_t firstPktSchedTime;
+        simtime_t firstPktEnqueueTime;
     };
 
     class OutboundMsg
@@ -139,7 +144,7 @@ class VectioTransport : public cSimpleModule
         inet::L3Address destAddr;
         uint64_t msgIdAtSender;
         simtime_t msgCreationTime;
-        // int grantSizeBytes = 1000; //TODO -- get this value from the parent class automatically
+        uint16_t schedPrio;
     };
 
   protected:
@@ -154,6 +159,7 @@ class VectioTransport : public cSimpleModule
     cMessage* selfMsg;
     cMessage* inboundGrantQueueTimer;
     cMessage* outboundGrantQueueTimer;
+    cMessage* sendQueueTimer;
     cMessage* retxTimer;
 
     // udp ports through which this transport send and receive packets
@@ -164,8 +170,6 @@ class VectioTransport : public cSimpleModule
     bool logPacketEvents;
 
     // variables and states kept for administering outbound messages
-    uint64_t msgId; // unique monotonically increasing id for
-                    // each messages to send
     uint32_t maxDataBytesInPkt;
 
     // State and variables kept for managing inbound messages
@@ -191,13 +195,14 @@ class VectioTransport : public cSimpleModule
     std::queue<HomaPkt*> outboundGrantQueue;
     bool inboundGrantQueueBusy;
     bool outboundGrantQueueBusy;
-    int freeGrantSize = 5000;
+    int freeGrantSize = 10000;
     double nicBandwidth = 10e9; //TODO initialize using ini file
 
     //use this instead of outbound grant queue
     //whenever you're ready to send any grant, find the message to send the 
     //grant to using the desired scheduling criteria
-    typedef std::map<uint64_t, std::set<std::pair<inet::L3Address,int>>> PendingMsgsToGrant;
+    typedef std::map<uint64_t, std::set<std::pair<inet::L3Address,int>>> 
+            PendingMsgsToGrant;
     PendingMsgsToGrant pendingMsgsToGrant;
 
     typedef std::map<uint64_t, int> PendingMsgsToSend;
@@ -206,11 +211,87 @@ class VectioTransport : public cSimpleModule
     typedef std::map<uint64_t, std::set<inet::L3Address>> FinishedMsgsMap;
     FinishedMsgsMap finishedMsgs;
 
-    double currentRtt = 2.0 * 5e-6;
-    int allowedInFlightGrantedBytes = ((int)(2.0 * 5e-6 * 10e9 / 8.0));
+    double currentRtt = 2.5 * 2.0 * 1.6e-6;
 
-    int degOverComm = 3; 
+    // max allowed inflight grant bytes per receiver
+    int allowedInFlightGrantedBytes = 
+            ((int)(2.5 * 2.0 * 1.6e-6 * 10e9 / 8.0));
+    int allowedInFlightGrantedBytesIntraPod = 
+            ((int)(2.5 * 2.0 * 1.6e-6 * 10e9 / 8.0));
 
+    double baseRtt = 2.5 * 2.0 * 1.6e-6;
+    double baseRttIntraPod = 1.5 * 2.0 * 1.6e-6;
+
+    int currentRcvInFlightGrantBytes = 0;
+
+    typedef std::map<inet::L3Address,int> SenderInFlightGrantBytes;
+    SenderInFlightGrantBytes senderInFlightGrantBytes;
+
+    // for each sender, stores a pair of current actively granted msg and
+    // bytes remaining to grant
+    typedef std::map<inet::L3Address,std::pair<uint64_t,int>> 
+            SenderActiveGrantedMsg;
+    SenderActiveGrantedMsg senderActiveGrantedMsg;
+
+    int degOverComm = 8; 
+
+    std::queue<HomaPkt*> sendQueue;
+    bool sendQueueBusy;
+    int totalSendQueueSizeInBytes;
+    simtime_t sendQueueFreeTime;
+    double INFINITISIMALTIME = 1e-9;
+
+    int extraGrantedBytes = 0;
+    typedef std::map<inet::L3Address,simtime_t> LastHeardFromSender;
+    LastHeardFromSender lastHeardFromSender;
+
+    typedef std::map<inet::L3Address,simtime_t> LastGrantSentToSender;
+    LastGrantSentToSender lastGrantSentToSender;
+
+    typedef std::map<inet::L3Address,std::set<uint64_t>> GrantedMsgsPerSender;
+    GrantedMsgsPerSender grantedMsgsPerSender;
+
+    double lastHeardThreshold = 
+            3.0 * 2.5 * 2.0 * 1.6e-6;
+
+    double ai = 1.0;
+    double md = 0.25;
+    int maxWindSize;
+    int minWindSize;
+    typedef std::map<inet::L3Address, double> RttPerSender;
+    RttPerSender currRttPerSender;
+    RttPerSender targetDelayPerSender;
+    typedef std::map<inet::L3Address, int> WindPerSender;
+    WindPerSender windPerSender;
+    typedef std::map<inet::L3Address, simtime_t> LastReducedWind;
+    LastReducedWind lastReducedWind;
+    typedef std::map<inet::L3Address, int> ActiveMsgsPerHost;
+    ActiveMsgsPerHost activeMsgsPerSender; //used for nic resource logging
+    ActiveMsgsPerHost activeMsgsPerReceiver;
+    int oooBytesAtReceiver = 0; //keeps account of total OOO bytes at receiver
+    double queueingDelayFactor = 2.0;
+
+    double edgeLinkDelay;
+    double fabricLinkDelay;
+    double hostSwTurnAroundTime;
+    double hostNicSxThinkTime;
+    double switchFixDelay;
+    double nicLinkSpeed;
+    double fabricLinkSpeed;
+    bool isFabricCutThrough;
+    bool isSingleSpeedFabric;
+
+    PendingMsgsToGrant::iterator lastMsgGrantedItr;
+    PendingMsgsToSend::iterator lastMsgSentItr;
+
+    std::string transportSchedulingPolicy;
+    bool congCtrl = true;
+
+    int maxNumActiveMsgsReceiver = 0;
+    int maxNumActiveMsgsSender = 0;
+    int maxNumActiveReceivers = 0;
+    int maxNumActiveSenders = 0;
+    int maxOOOBytesAtReceiver = 0;
     public:
       int grantSizeBytes = 1000;
 };

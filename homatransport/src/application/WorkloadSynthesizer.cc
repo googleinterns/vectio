@@ -149,10 +149,11 @@ WorkloadSynthesizer::initialize()
     xmlConfig = par("appConfig").xmlValue();
     const char* resultsDir = "results/";
     std::string OutputFileName = std::string(
-                resultsDir) + std::string(par("resultFile").stringValue());
+                resultsDir) + std::string(par("outputFileName").stringValue());
     if(!outputFile.is_open()) {
         outputFile.open(OutputFileName);
     }
+    // std::string WorkloadFileName = std::string(par("workloadFileName").stringValue());
 
     // Setup templated statistics ans signals
     const char* msgSizeRanges = par("msgSizeRanges").stringValue();
@@ -235,8 +236,8 @@ WorkloadSynthesizer::initialize()
     } else if (strcmp(workLoadType, "PRESET_IN_FILE") == 0){
         distSelector =
                 MsgSizeDistributions::DistributionChoice::SIZE_IN_FILE;
-        distFileName = std::string(
-                "../../sizeDistributions/HostidSizeInterarrival-test.txt");
+        distFileName = std::string("../../sizeDistributions/") 
+        + std::string(par("workloadFileName").stringValue());
     } else {
         throw cRuntimeError("'%s': Not a valie workload type.",workLoadType);
     }
@@ -415,6 +416,7 @@ WorkloadSynthesizer::sendMsg()
     // appMessage->setSrcAddr(srcAddress);
     appMessage->setMsgCreationTime(appMessage->getCreationTime());
     appMessage->setTransportSchedDelay(appMessage->getCreationTime());
+    appMessage->setMsgId(msgId);
     emit(sentMsgSignal, appMessage);
     send(appMessage, "transportOut");
     numSent++;
@@ -458,7 +460,7 @@ void
 WorkloadSynthesizer::setupNextSend()
 {
     double nextSendInterval;
-    msgSizeGenerator->getSizeAndInterarrival(sendMsgSize, nextDestHostId,
+    msgSizeGenerator->getSizeAndInterarrival(msgId, sendMsgSize, nextDestHostId,
         nextSendInterval);
     simtime_t nextSendTime = nextSendInterval + simTime();
     if (sendMsgSize < 0 || nextSendTime > stopTime) {
@@ -530,11 +532,12 @@ WorkloadSynthesizer::processRcvdMsg(cPacket* msg)
     inet::L3Address srcAddr = rcvdMsg->getSrcAddr();
     inet::L3Address destAddr = rcvdMsg->getDestAddr();
 
-    outputFile  <<  addrHostidMap[srcAddr.str()] << " " 
+    outputFile  <<  rcvdMsg->getMsgId() << " " << addrHostidMap[srcAddr.str()] << " " 
     << parentHostIdx << " " << srcAddr << " " << destAddr 
     << " " << msgByteLen << " " << rcvdMsg->getMsgCreationTime().dbl() 
     << " " << simTime() << " " << completionTime.dbl() << " " 
-    << idealMsgEndToEndDelay(rcvdMsg) << std::endl;
+    << idealMsgEndToEndDelay(rcvdMsg) << 
+    std::endl;
     outputFile.flush();
 
     delete rcvdMsg;

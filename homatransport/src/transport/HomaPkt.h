@@ -48,6 +48,9 @@ class HomaPkt : public HomaPkt_Base
     uint32_t getFirstByte() const;
     friend bool operator>(const HomaPkt &lhs, const HomaPkt &rhs);
 
+    simtime_t pktScheduleTime;
+    simtime_t pktFirstEnqueueTime;
+
     /**
      * A utility predicate for creating PriorityQueues of HomaPkt instances
      * based on priority numbers.
